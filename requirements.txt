@@ -1,0 +1,7 @@
+﻿discord.py>=2.4.0
+aiosqlite>=0.20.0
+google-api-python-client>=2.170.0
+python-dotenv>=1.0.1
+tzdata>=2025.2
+pytest>=8.2.0
+pytest-asyncio>=0.23.7
