@@ -30,6 +30,7 @@ pip install -r requirements.txt
 `.env.example`를 참고해 `.env`를 구성하세요.
 
 - `DISCORD_BOT_TOKEN`: 디스코드 봇 토큰
+- `YOUTUBE_API_KEY`: YouTube Data API v3 키 (검색 메타데이터 보강에 사용)
 - `DB_PATH`: SQLite 파일 경로 (기본값 `bot.db`)
 - `DISCORD_GUILD_ID`(선택): 길드 단위 슬래시 명령 동기화용
 
@@ -51,5 +52,5 @@ python main.py
 
 ## 테스트
 ```bash
-pytest -q
+python -m pytest -q
 ```
