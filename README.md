@@ -18,7 +18,7 @@
 - Python 3.11+
 - discord.py
 - aiosqlite
-- google-api-python-client
+- ytmusicapi
 - python-dotenv
 
 ## 설치
@@ -30,13 +30,12 @@ pip install -r requirements.txt
 `.env.example`를 참고해 `.env`를 구성하세요.
 
 - `DISCORD_BOT_TOKEN`: 디스코드 봇 토큰
-- `YOUTUBE_API_KEY`: YouTube Data API v3 키
 - `DB_PATH`: SQLite 파일 경로 (기본값 `bot.db`)
 - `DISCORD_GUILD_ID`(선택): 길드 단위 슬래시 명령 동기화용
 
 ## 실행
 ```bash
-python -m src.main
+python main.py
 ```
 
 ## 권한 정책
