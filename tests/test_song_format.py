@@ -8,7 +8,14 @@ def test_format_song_display_with_artist():
 
 
 def test_format_song_display_keeps_existing_pair_format():
-    assert format_song_display("IVE - REBEL HEART", "Channel") == "IVE - REBEL HEART"
+    assert format_song_display("IVE - REBEL HEART", "IVE") == "IVE - REBEL HEART"
+
+
+def test_format_song_display_hyphenated_title_with_distinct_artist():
+    assert (
+        format_song_display("Yumeutsutsu - Daydream", "Ado")
+        == "Ado - Yumeutsutsu - Daydream"
+    )
 
 
 def test_format_song_display_without_artist_fallback():
