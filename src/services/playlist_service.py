@@ -79,19 +79,15 @@ class PlaylistService:
             available_days.append(target_day)
 
         lines = [
-            f"서버 현재 요일: {self._weekday_label(current.weekday())}",
-            "```",
-            "구분                | 요일",
-            "--------------------|------------------------------",
-            f"신청 가능           | {self._day_list_text(available_days)}",
-            f"잠금(상점 사용)     | {self._day_list_text(locked_days)}",
-            f"플리 꽉참           | {self._day_list_text(full_days)}",
-            "```",
+            f"📅 서버 현재 요일: {self._weekday_label(current.weekday())}",
+            f"✅ 신청 가능 요일: {self._day_list_text(available_days)}",
+            f"🔒 잠금(상점 사용): {self._day_list_text(locked_days)}",
+            f"📦 플리 꽉참: {self._day_list_text(full_days)}",
         ]
         if not available_days:
-            lines.append("현재 신청 가능한 요일이 없습니다.")
+            lines.append("⚠️ 현재 신청 가능한 요일이 없습니다.")
         if current.weekday() == 4 and current.hour >= 3:
-            lines.append("금요일 03:00 이후에는 곡 신청이 잠기며, 일요일 09:00부터 다시 신청 가능합니다.")
+            lines.append("🕘 금요일 03:00 이후에는 곡 신청이 잠기며, 일요일 09:00부터 다시 신청 가능합니다.")
         return "\n".join(lines)
 
     async def _build_denied_message(self, reason: str, user_id: int) -> str:

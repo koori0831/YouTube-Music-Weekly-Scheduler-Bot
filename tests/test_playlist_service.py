@@ -101,9 +101,9 @@ async def test_locked_without_exclusive_blocks_everyone(app_ctx):
     assert validation.allowed is False
     assert validation.message is not None
     assert LOCKED_MESSAGE in validation.message
-    assert "신청 가능" in validation.message
-    assert "잠금(상점 사용)" in validation.message
-    assert "플리 꽉참" in validation.message
+    assert "✅ 신청 가능 요일:" in validation.message
+    assert "🔒 잠금(상점 사용):" in validation.message
+    assert "📦 플리 꽉참:" in validation.message
 
 
 @pytest.mark.asyncio
@@ -210,8 +210,8 @@ async def test_validate_request_blocks_past_day_by_server_weekday(app_ctx):
     assert validation.allowed is False
     assert validation.message is not None
     assert PAST_DAY_MESSAGE in validation.message
-    assert "서버 현재 요일: 수요일" in validation.message
-    assert "신청 가능           | 수요일, 목요일, 금요일" in validation.message
+    assert "📅 서버 현재 요일: 수요일" in validation.message
+    assert "✅ 신청 가능 요일: 수요일, 목요일, 금요일" in validation.message
 
 
 @pytest.mark.asyncio
@@ -224,8 +224,8 @@ async def test_register_song_blocks_past_day_by_server_weekday(app_ctx):
 
     assert result.success is False
     assert PAST_DAY_MESSAGE in result.message
-    assert "서버 현재 요일: 목요일" in result.message
-    assert "신청 가능           | 목요일, 금요일" in result.message
+    assert "📅 서버 현재 요일: 목요일" in result.message
+    assert "✅ 신청 가능 요일: 목요일, 금요일" in result.message
 
 
 @pytest.mark.asyncio
@@ -260,7 +260,7 @@ async def test_past_day_message_includes_next_week_notice_after_friday_3am(app_c
 
     assert validation.allowed is False
     assert validation.message is not None
-    assert "일요일 09:00부터 다시 신청 가능합니다." in validation.message
+    assert "🕘 금요일 03:00 이후에는 곡 신청이 잠기며, 일요일 09:00부터 다시 신청 가능합니다." in validation.message
 
 
 @pytest.mark.asyncio
@@ -278,5 +278,5 @@ async def test_denied_message_shows_no_available_days_when_none(app_ctx):
 
     assert validation.allowed is False
     assert validation.message is not None
-    assert "신청 가능           | 없음" in validation.message
-    assert "현재 신청 가능한 요일이 없습니다." in validation.message
+    assert "✅ 신청 가능 요일: 없음" in validation.message
+    assert "⚠️ 현재 신청 가능한 요일이 없습니다." in validation.message

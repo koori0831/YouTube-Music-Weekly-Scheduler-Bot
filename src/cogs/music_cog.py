@@ -15,6 +15,7 @@ from src.db.repositories import (
 )
 from src.services.playlist_service import PlaylistService
 from src.services.youtube_service import YouTubeService
+from src.utils.response_embed import build_status_embed
 from src.utils.song_format import format_song_display
 from src.views.song_select_view import SongSelectView
 
@@ -61,7 +62,9 @@ class MusicCog(commands.Cog):
         day = 요일.value
         validation = await self.playlist_service.validate_request(interaction.user.id, day)
         if not validation.allowed:
-            await interaction.response.send_message(validation.message or "신청할 수 없습니다.", ephemeral=True)
+            message = validation.message or "신청할 수 없습니다."
+            embed = build_status_embed(message, title="신청 불가")
+            await interaction.response.send_message(embed=embed, ephemeral=True)
             return
 
         await interaction.response.defer(thinking=True, ephemeral=True)

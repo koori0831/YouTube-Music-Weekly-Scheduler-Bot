@@ -5,6 +5,7 @@ import discord
 from src.constants import UNAUTHORIZED_BUTTON_MESSAGE
 from src.models import YouTubeResult
 from src.services.playlist_service import PlaylistService
+from src.utils.response_embed import build_status_embed
 from src.utils.song_format import format_song_display
 
 
@@ -90,7 +91,10 @@ class SongSelectView(discord.ui.View):
             else:
                 content = "곡 등록이 완료되었습니다."
         else:
-            content = result.message
+            content = "신청이 거절되었습니다."
+            embed = build_status_embed(result.message, title="신청 실패")
+            await interaction.response.edit_message(content=content, embed=embed, view=self)
+            return
 
         await interaction.response.edit_message(content=content, embed=None, view=self)
 
