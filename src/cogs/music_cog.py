@@ -39,6 +39,57 @@ class MusicCog(commands.Cog):
         self.meta_repo = meta_repo
         self.youtube_service = youtube_service
 
+    def _restricted_guild_id(self) -> int | None:
+        settings = getattr(self.bot, "settings", None)
+        return getattr(settings, "discord_guild_id", None)
+
+    async def _is_user_in_restricted_guild(self, user_id: int) -> bool:
+        guild_id = self._restricted_guild_id()
+        if guild_id is None:
+            return True
+
+        guild = self.bot.get_guild(guild_id)
+        if guild is None:
+            try:
+                guild = await self.bot.fetch_guild(guild_id)
+            except discord.HTTPException:
+                return False
+
+        if guild.get_member(user_id) is not None:
+            return True
+
+        try:
+            await guild.fetch_member(user_id)
+            return True
+        except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+            return False
+
+    async def cog_app_command_check(self, interaction: discord.Interaction) -> bool:
+        guild_id = self._restricted_guild_id()
+        if guild_id is None:
+            return True
+
+        if await self._is_user_in_restricted_guild(interaction.user.id):
+            return True
+
+        raise app_commands.CheckFailure(
+            f"이 봇은 지정된 서버 멤버만 사용할 수 있습니다. (DISCORD_GUILD_ID={guild_id})"
+        )
+
+    async def cog_app_command_error(
+        self,
+        interaction: discord.Interaction,
+        error: app_commands.AppCommandError,
+    ) -> None:
+        if isinstance(error, app_commands.CheckFailure):
+            message = str(error) or "명령어를 사용할 권한이 없습니다."
+            if interaction.response.is_done():
+                await interaction.followup.send(message, ephemeral=True)
+            else:
+                await interaction.response.send_message(message, ephemeral=True)
+            return
+        raise error
+
     def _is_admin(self, interaction: discord.Interaction) -> bool:
         if interaction.guild is None:
             return False

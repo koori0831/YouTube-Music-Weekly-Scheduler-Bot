@@ -43,6 +43,7 @@ python main.py
 ## 권한 정책
 - 관리자 전용 명령: `/플리제한`, `/셔플`
 - 관리자 기준: `Administrator` 또는 `Manage Guild`
+- `DISCORD_GUILD_ID`가 설정된 경우: 해당 길드 멤버가 아닌 유저는 모든 명령어 사용 불가
 
 ## 동작 정책 요약
 - 운영 요일: 월~금
