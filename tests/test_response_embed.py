@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from src.utils.response_embed import build_status_embed
+import discord
+
+from src.utils.response_embed import build_song_list_embed, build_status_embed
 
 
 def test_build_status_embed_parses_status_lines() -> None:
@@ -31,3 +33,31 @@ def test_build_status_embed_with_plain_message() -> None:
     assert embed.title == "안내"
     assert embed.description == "신청할 수 없습니다."
     assert len(embed.fields) == 0
+
+
+def test_build_song_list_embed_with_songs() -> None:
+    embed = build_song_list_embed(
+        title="수요일 현재 현황",
+        songs=["A", "B"],
+        kind="view",
+        max_songs=12,
+    )
+    assert embed.title == "📋 수요일 현재 현황 (2곡/12곡)"
+    assert embed.color == discord.Color.blurple()
+    assert len(embed.fields) == 1
+    assert embed.fields[0].name == "곡 목록"
+    assert "1. A" in embed.fields[0].value
+    assert "2. B" in embed.fields[0].value
+
+
+def test_build_song_list_embed_with_empty_list() -> None:
+    embed = build_song_list_embed(
+        title="목요일 셔플 결과",
+        songs=[],
+        kind="shuffle",
+        empty_text="목요일 플레이리스트가 비어 있습니다.",
+    )
+    assert embed.title == "🔀 목요일 셔플 결과"
+    assert embed.color == discord.Color.teal()
+    assert len(embed.fields) == 1
+    assert embed.fields[0].value == "목요일 플레이리스트가 비어 있습니다."

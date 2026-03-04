@@ -15,7 +15,7 @@ from src.db.repositories import (
 )
 from src.services.playlist_service import PlaylistService
 from src.services.youtube_service import YouTubeService
-from src.utils.response_embed import build_status_embed
+from src.utils.response_embed import build_song_list_embed, build_status_embed
 from src.utils.song_format import format_song_display
 from src.views.song_select_view import SongSelectView
 
@@ -47,6 +47,59 @@ class MusicCog(commands.Cog):
             return False
         perms = member.guild_permissions
         return perms.administrator or perms.manage_guild
+
+    def _build_help_embed(self) -> discord.Embed:
+        embed = discord.Embed(
+            title="📘 YouTube Music Weekly Scheduler Bot 도움말",
+            description="기본 룰과 명령어 사용법입니다.",
+            color=discord.Color.gold(),
+        )
+        embed.add_field(
+            name="기본 룰",
+            value=(
+                "- 운영 요일: 월~금\n"
+                "- 요일당 최대 12곡\n"
+                "- 일반 유저 주간 최대 2곡\n"
+                "- 매주 일요일 09:00(KST) 자동 초기화"
+            ),
+            inline=False,
+        )
+        embed.add_field(
+            name="시간 규칙",
+            value=(
+                "- 기준: 서버 시간\n"
+                "- 당일 03:00 이전에는 전날 요일 기준으로 신청 가능\n"
+                "- 금요일 03:00 이후 신청은 일요일 09:00 이후 다시 가능"
+            ),
+            inline=False,
+        )
+        embed.add_field(
+            name="일반 명령어",
+            value=(
+                "- `/신청 제목:<곡명> 요일:<월~금>`: 곡 검색 후 선택 신청\n"
+                "- `/보기 요일:<월~금>`: 해당 요일 플레이리스트 조회\n"
+                "- `/help`: 도움말 보기"
+            ),
+            inline=False,
+        )
+        embed.add_field(
+            name="관리자 명령어",
+            value=(
+                "- `/플리제한 요일 상태 [유저]`: 요일 잠금/해제, 독점 유저 지정\n"
+                "- `/셔플 요일`: 요일 곡 목록 셔플\n"
+                "- `/db초기화 확인:초기화`: DB 초기화"
+            ),
+            inline=False,
+        )
+        return embed
+
+    @app_commands.command(name="help", description="봇 사용법과 운영 규칙을 안내합니다.")
+    async def help_command(self, interaction: discord.Interaction) -> None:
+        await interaction.response.send_message(embed=self._build_help_embed(), ephemeral=True)
+
+    @app_commands.command(name="도움말", description="봇 사용법과 운영 규칙을 안내합니다.")
+    async def help_command_ko(self, interaction: discord.Interaction) -> None:
+        await interaction.response.send_message(embed=self._build_help_embed(), ephemeral=True)
 
     @app_commands.command(name="신청", description="요일 플레이리스트에 노래를 신청합니다.")
     @app_commands.describe(제목="유튜브에서 검색할 곡 제목", 요일="신청할 요일")
@@ -154,16 +207,15 @@ class MusicCog(commands.Cog):
     ) -> None:
         day = 요일.value
         songs = await self.playlist_repo.list_by_day(day)
-        if not songs:
-            await interaction.response.send_message(f"{day}요일 플레이리스트가 비어 있습니다.")
-            return
-
         titles = [format_song_display(str(song["title"])) for song in songs]
-        lines = [f"{idx}. {title}" for idx, title in enumerate(titles, start=1)]
-        block = "```text\n" + "\n".join(lines) + "\n```"
-        await interaction.response.send_message(
-            f"{day}요일 현재 현황 ({len(titles)}곡/{MAX_SONGS_PER_DAY}곡):\n{block}"
+        embed = build_song_list_embed(
+            title=f"{day}요일 현재 현황",
+            songs=titles,
+            kind="view",
+            max_songs=MAX_SONGS_PER_DAY,
+            empty_text=f"{day}요일 플레이리스트가 비어 있습니다.",
         )
+        await interaction.response.send_message(embed=embed)
 
     @app_commands.command(name="셔플", description="해당 요일의 곡 제목 목록을 셔플하여 보여줍니다.")
     @app_commands.default_permissions(administrator=True, manage_guild=True)
@@ -183,17 +235,14 @@ class MusicCog(commands.Cog):
         day = 요일.value
         songs = await self.playlist_repo.list_by_day(day)
         titles = [format_song_display(str(song["title"])) for song in songs]
-
-        if not titles:
-            await interaction.response.send_message(f"{day}요일 플레이리스트가 비어 있습니다.")
-            return
-
         random.shuffle(titles)
-        lines = [f"{idx}. {title}" for idx, title in enumerate(titles, start=1)]
-        block = "```text\n" + "\n".join(lines) + "\n```"
-        await interaction.response.send_message(
-            f"{day}요일 셔플 결과:\n{block}"
+        embed = build_song_list_embed(
+            title=f"{day}요일 셔플 결과",
+            songs=titles,
+            kind="shuffle",
+            empty_text=f"{day}요일 플레이리스트가 비어 있습니다.",
         )
+        await interaction.response.send_message(embed=embed)
 
     @app_commands.command(name="db초기화", description="DB 데이터를 초기 상태로 초기화합니다.")
     @app_commands.default_permissions(administrator=True, manage_guild=True)

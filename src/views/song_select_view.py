@@ -2,10 +2,10 @@
 
 import discord
 
-from src.constants import UNAUTHORIZED_BUTTON_MESSAGE
+from src.constants import MAX_SONGS_PER_DAY, UNAUTHORIZED_BUTTON_MESSAGE
 from src.models import YouTubeResult
 from src.services.playlist_service import PlaylistService
-from src.utils.response_embed import build_status_embed
+from src.utils.response_embed import build_song_list_embed, build_status_embed
 from src.utils.song_format import format_song_display
 
 
@@ -74,19 +74,19 @@ class SongSelectView(discord.ui.View):
             child.disabled = True
 
         if result.success:
-            lines = [
-                f"{i}. {format_song_display(title)}"
-                for i, title in enumerate(result.playlist_titles, start=1)
-            ]
-            status = "\n".join(lines) if lines else "(비어 있음)"
-            status_block = f"```text\n{status}\n```"
-            public_content = (
-                f"{interaction.user.mention} 님이 곡을 신청했습니다.\n"
-                f"선택한 곡: **{selected_display}**\n"
-                f"{self.day}요일 현재 플리:\n{status_block}"
+            titles = [format_song_display(title) for title in result.playlist_titles]
+            public_embed = build_song_list_embed(
+                title=f"{self.day}요일 현재 플리",
+                songs=titles,
+                kind="success",
+                description=(
+                    f"{interaction.user.mention} 님이 곡을 신청했습니다.\n"
+                    f"선택한 곡: **{selected_display}**"
+                ),
+                max_songs=MAX_SONGS_PER_DAY,
             )
             if interaction.channel is not None:
-                await interaction.channel.send(public_content)
+                await interaction.channel.send(embed=public_embed)
                 content = "곡 등록이 완료되었습니다. 채널에 공개 결과를 전송했습니다."
             else:
                 content = "곡 등록이 완료되었습니다."
