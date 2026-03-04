@@ -280,3 +280,19 @@ async def test_denied_message_shows_no_available_days_when_none(app_ctx):
     assert validation.message is not None
     assert "✅ 신청 가능 요일: 없음" in validation.message
     assert "⚠️ 현재 신청 가능한 요일이 없습니다." in validation.message
+
+
+@pytest.mark.asyncio
+async def test_user_stats_decrement_restores_count_and_cleans_zero_row(app_ctx):
+    user_stats_repo = app_ctx["user_stats_repo"]
+    user_id = 4321
+
+    await user_stats_repo.increment(user_id)
+    await user_stats_repo.increment(user_id)
+    assert await user_stats_repo.get_count(user_id) == 2
+
+    await user_stats_repo.decrement(user_id)
+    assert await user_stats_repo.get_count(user_id) == 1
+
+    await user_stats_repo.decrement(user_id)
+    assert await user_stats_repo.get_count(user_id) == 0

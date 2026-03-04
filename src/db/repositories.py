@@ -145,6 +145,25 @@ class UserStatsRepository:
             )
             await conn.commit()
 
+    async def decrement(self, user_id: int) -> None:
+        async with aiosqlite.connect(self._db_path) as conn:
+            await conn.execute(
+                """
+                UPDATE user_stats
+                SET weekly_count = CASE
+                    WHEN weekly_count > 0 THEN weekly_count - 1
+                    ELSE 0
+                END
+                WHERE user_id = ?
+                """,
+                (user_id,),
+            )
+            await conn.execute(
+                "DELETE FROM user_stats WHERE user_id = ? AND weekly_count <= 0",
+                (user_id,),
+            )
+            await conn.commit()
+
     async def reset_all(self) -> None:
         async with aiosqlite.connect(self._db_path) as conn:
             await conn.execute("DELETE FROM user_stats")

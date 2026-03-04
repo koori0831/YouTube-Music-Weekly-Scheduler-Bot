@@ -138,6 +138,7 @@ class MusicCog(commands.Cog):
             value=(
                 "- `/플리제한 요일 상태 [유저]`: 요일 잠금/해제, 독점 유저 지정\n"
                 "- `/셔플 요일`: 요일 곡 목록 셔플\n"
+                "- `/삭제 요일 번호`: 해당 요일에서 번호로 곡 삭제(신청 횟수 1회 복구)\n"
                 "- `/db초기화 확인:초기화`: DB 초기화"
             ),
             inline=False,
@@ -339,6 +340,7 @@ class MusicCog(commands.Cog):
 
         title = format_song_display(str(target["title"]))
         requester_id = int(target["user_id"])
+        await self.user_stats_repo.decrement(requester_id)
         requester_mention = f"<@{requester_id}>"
         deleter_mention = interaction.user.mention
 
