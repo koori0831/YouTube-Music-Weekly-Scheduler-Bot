@@ -76,6 +76,12 @@ class MusicSchedulerBot(commands.Bot):
         await super().close()
 
     async def on_ready(self) -> None:
+        await self.change_presence(
+            activity=discord.Activity(
+                type=discord.ActivityType.competing,
+                name="/도움말 입력하기!",
+            )
+        )
         print(f"Logged in as {self.user} (ID: {self.user.id})")
 
 
