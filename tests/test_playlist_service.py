@@ -36,7 +36,7 @@ async def app_ctx():
         user_stats_repo = UserStatsRepository(db_path)
         meta_repo = MetaRepository(db_path)
 
-        now_box = {"value": datetime(2026, 3, 2, 12, 0, 0)}  # Monday
+        now_box = {"value": datetime(2026, 3, 2, 0, 30, 0)}  # Monday 00:30
 
         def now_provider() -> datetime:
             return now_box["value"]
@@ -211,7 +211,7 @@ async def test_validate_request_blocks_past_day_by_server_weekday(app_ctx):
     assert validation.message is not None
     assert PAST_DAY_MESSAGE in validation.message
     assert "📅 서버 현재 요일: 수요일" in validation.message
-    assert "✅ 신청 가능 요일: 수요일, 목요일, 금요일" in validation.message
+    assert "✅ 신청 가능 요일: 목요일, 금요일" in validation.message
 
 
 @pytest.mark.asyncio
@@ -225,16 +225,16 @@ async def test_register_song_blocks_past_day_by_server_weekday(app_ctx):
     assert result.success is False
     assert PAST_DAY_MESSAGE in result.message
     assert "📅 서버 현재 요일: 목요일" in result.message
-    assert "✅ 신청 가능 요일: 목요일, 금요일" in result.message
+    assert "✅ 신청 가능 요일: 금요일" in result.message
 
 
 @pytest.mark.asyncio
-async def test_logical_day_boundary_before_0040_allows_previous_weekday(app_ctx):
+async def test_daily_cutoff_before_0040_allows_current_day(app_ctx):
     service = app_ctx["service"]
     now_box = app_ctx["now_box"]
-    now_box["value"] = datetime(2026, 3, 4, 0, 30, 0)  # Wednesday 00:30 -> logical Tuesday
+    now_box["value"] = datetime(2026, 3, 4, 0, 30, 0)  # Wednesday 00:30
 
-    validation = await service.validate_request(9991, "화")
+    validation = await service.validate_request(9991, "수")
 
     assert validation.allowed is True
 
@@ -280,6 +280,19 @@ async def test_denied_message_shows_no_available_days_when_none(app_ctx):
     assert validation.message is not None
     assert "✅ 신청 가능 요일: 없음" in validation.message
     assert "⚠️ 현재 신청 가능한 요일이 없습니다." in validation.message
+
+
+@pytest.mark.asyncio
+async def test_thursday_after_0040_blocks_thursday_playlist(app_ctx):
+    service = app_ctx["service"]
+    now_box = app_ctx["now_box"]
+    now_box["value"] = datetime(2026, 3, 5, 8, 46, 0)  # Thursday 08:46
+
+    validation = await service.validate_request(9995, "목")
+
+    assert validation.allowed is False
+    assert validation.message is not None
+    assert "✅ 신청 가능 요일: 금요일" in validation.message
 
 
 @pytest.mark.asyncio

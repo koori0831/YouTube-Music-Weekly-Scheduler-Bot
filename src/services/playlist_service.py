@@ -1,7 +1,7 @@
 ﻿from __future__ import annotations
 
 from collections.abc import Callable
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import aiosqlite
 
@@ -38,12 +38,25 @@ class PlaylistService:
     def _is_after_friday_cutoff(self, current: datetime) -> bool:
         return current.weekday() == 4 and (current.hour, current.minute) >= (0, 40)
 
-    def _get_available_days(self, current: datetime, logical_weekday: int) -> list[str]:
+    def _get_time_allowed_days(self, current: datetime) -> list[str]:
+        # Weekly reset runs at Sunday 09:00. After reset, all weekday playlists are open.
         if current.weekday() == 6 and current.hour >= 9:
             return DAY_CHOICES.copy()
-        if logical_weekday >= 5:
-            return DAY_CHOICES.copy()
-        return DAY_CHOICES[logical_weekday:]
+
+        weekday = current.weekday()
+        is_after_daily_cutoff = (current.hour, current.minute) >= (0, 40)
+
+        # From Friday 00:40 to Sunday 08:59 all requests are blocked.
+        if weekday == 4 and is_after_daily_cutoff:
+            return []
+        if weekday >= 5:
+            return []
+
+        # Monday~Thursday:
+        # before 00:40 -> current day is still available
+        # after 00:40  -> current day is closed, only future weekdays remain
+        start_index = weekday + (1 if is_after_daily_cutoff else 0)
+        return DAY_CHOICES[start_index:]
 
     def _weekday_label(self, weekday_index: int) -> str:
         weekday_names = ["월요일", "화요일", "수요일", "목요일", "금요일", "토요일", "일요일"]
@@ -56,9 +69,7 @@ class PlaylistService:
 
     async def _build_availability_table(self, user_id: int) -> str:
         current = self._now_provider()
-        shifted = current - timedelta(minutes=40)
-        logical_weekday = shifted.weekday()
-        time_allowed_days = set(self._get_available_days(current, logical_weekday))
+        time_allowed_days = set(self._get_time_allowed_days(current))
 
         available_days: list[str] = []
         locked_days: list[str] = []
@@ -99,20 +110,7 @@ class PlaylistService:
 
     def _is_past_day(self, day: str) -> bool:
         current = self._now_provider()
-
-        # Weekly reset runs at Sunday 09:00. After reset, all weekday playlists are open.
-        if current.weekday() == 6 and current.hour >= 9:
-            return False
-
-        shifted = current - timedelta(minutes=40)
-        logical_weekday = shifted.weekday()
-
-        # Logical Saturday/Sunday has no past-day restriction for weekday playlists.
-        if logical_weekday >= 5:
-            return False
-
-        request_day_index = DAY_CHOICES.index(day)
-        return request_day_index < logical_weekday
+        return day not in self._get_time_allowed_days(current)
 
     async def validate_request(self, user_id: int, day: str) -> ValidationResult:
         if day not in DAY_CHOICES:
