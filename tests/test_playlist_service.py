@@ -99,7 +99,11 @@ async def test_locked_without_exclusive_blocks_everyone(app_ctx):
     validation = await service.validate_request(5001, "금")
 
     assert validation.allowed is False
-    assert validation.message == LOCKED_MESSAGE
+    assert validation.message is not None
+    assert LOCKED_MESSAGE in validation.message
+    assert "신청 가능" in validation.message
+    assert "잠금(상점 사용)" in validation.message
+    assert "플리 꽉참" in validation.message
 
 
 @pytest.mark.asyncio
@@ -113,7 +117,8 @@ async def test_exclusive_user_bypasses_weekly_limit(app_ctx):
 
     outsider_validation = await service.validate_request(outsider_user_id, "월")
     assert outsider_validation.allowed is False
-    assert outsider_validation.message == EXCLUSIVE_ONLY_MESSAGE
+    assert outsider_validation.message is not None
+    assert EXCLUSIVE_ONLY_MESSAGE in outsider_validation.message
 
     r1 = await service.register_song(exclusive_user_id, "월", "a", "u1")
     r2 = await service.register_song(exclusive_user_id, "월", "b", "u2")
@@ -203,7 +208,10 @@ async def test_validate_request_blocks_past_day_by_server_weekday(app_ctx):
     validation = await service.validate_request(7777, "화")
 
     assert validation.allowed is False
-    assert validation.message == PAST_DAY_MESSAGE
+    assert validation.message is not None
+    assert PAST_DAY_MESSAGE in validation.message
+    assert "서버 현재 요일: 수요일" in validation.message
+    assert "신청 가능           | 수요일, 목요일, 금요일" in validation.message
 
 
 @pytest.mark.asyncio
@@ -215,7 +223,9 @@ async def test_register_song_blocks_past_day_by_server_weekday(app_ctx):
     result = await service.register_song(8888, "월", "song", "url")
 
     assert result.success is False
-    assert result.message == PAST_DAY_MESSAGE
+    assert PAST_DAY_MESSAGE in result.message
+    assert "서버 현재 요일: 목요일" in result.message
+    assert "신청 가능           | 목요일, 금요일" in result.message
 
 
 @pytest.mark.asyncio
@@ -238,3 +248,35 @@ async def test_after_sunday_reset_time_all_weekdays_are_open(app_ctx):
     for day in ["월", "화", "수", "목", "금"]:
         validation = await service.validate_request(9992, day)
         assert validation.allowed is True
+
+
+@pytest.mark.asyncio
+async def test_past_day_message_includes_next_week_notice_after_friday_3am(app_ctx):
+    service = app_ctx["service"]
+    now_box = app_ctx["now_box"]
+    now_box["value"] = datetime(2026, 3, 6, 4, 0, 0)  # Friday 04:00
+
+    validation = await service.validate_request(9993, "목")
+
+    assert validation.allowed is False
+    assert validation.message is not None
+    assert "일요일 09:00부터 다시 신청 가능합니다." in validation.message
+
+
+@pytest.mark.asyncio
+async def test_denied_message_shows_no_available_days_when_none(app_ctx):
+    service = app_ctx["service"]
+    day_settings_repo = app_ctx["day_settings_repo"]
+    now_box = app_ctx["now_box"]
+    now_box["value"] = datetime(2026, 3, 4, 10, 0, 0)  # Wednesday
+
+    await day_settings_repo.set_lock("수", True, None)
+    await day_settings_repo.set_lock("목", True, None)
+    await day_settings_repo.set_lock("금", True, None)
+
+    validation = await service.validate_request(9994, "화")
+
+    assert validation.allowed is False
+    assert validation.message is not None
+    assert "신청 가능           | 없음" in validation.message
+    assert "현재 신청 가능한 요일이 없습니다." in validation.message

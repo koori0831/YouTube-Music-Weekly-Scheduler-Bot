@@ -35,6 +35,69 @@ class PlaylistService:
         self._user_stats_repo = user_stats_repo
         self._now_provider = now_provider or datetime.now
 
+    def _get_available_days(self, current: datetime, logical_weekday: int) -> list[str]:
+        if current.weekday() == 6 and current.hour >= 9:
+            return DAY_CHOICES.copy()
+        if logical_weekday >= 5:
+            return DAY_CHOICES.copy()
+        return DAY_CHOICES[logical_weekday:]
+
+    def _weekday_label(self, weekday_index: int) -> str:
+        weekday_names = ["월요일", "화요일", "수요일", "목요일", "금요일", "토요일", "일요일"]
+        return weekday_names[weekday_index]
+
+    def _day_list_text(self, days: list[str]) -> str:
+        if not days:
+            return "없음"
+        return ", ".join(f"{day}요일" for day in days)
+
+    async def _build_availability_table(self, user_id: int) -> str:
+        current = self._now_provider()
+        shifted = current - timedelta(hours=3)
+        logical_weekday = shifted.weekday()
+        time_allowed_days = set(self._get_available_days(current, logical_weekday))
+
+        available_days: list[str] = []
+        locked_days: list[str] = []
+        full_days: list[str] = []
+
+        for target_day in DAY_CHOICES:
+            day_setting = await self._day_settings_repo.get(target_day)
+            day_count = await self._playlist_repo.count_by_day(target_day)
+            is_full = day_count >= MAX_SONGS_PER_DAY
+            is_locked_for_user = day_setting.is_locked and day_setting.exclusive_user_id != user_id
+
+            if is_locked_for_user:
+                locked_days.append(target_day)
+            if is_full:
+                full_days.append(target_day)
+
+            if target_day not in time_allowed_days:
+                continue
+            if is_locked_for_user or is_full:
+                continue
+            available_days.append(target_day)
+
+        lines = [
+            f"서버 현재 요일: {self._weekday_label(current.weekday())}",
+            "```",
+            "구분                | 요일",
+            "--------------------|------------------------------",
+            f"신청 가능           | {self._day_list_text(available_days)}",
+            f"잠금(상점 사용)     | {self._day_list_text(locked_days)}",
+            f"플리 꽉참           | {self._day_list_text(full_days)}",
+            "```",
+        ]
+        if not available_days:
+            lines.append("현재 신청 가능한 요일이 없습니다.")
+        if current.weekday() == 4 and current.hour >= 3:
+            lines.append("금요일 03:00 이후에는 곡 신청이 잠기며, 일요일 09:00부터 다시 신청 가능합니다.")
+        return "\n".join(lines)
+
+    async def _build_denied_message(self, reason: str, user_id: int) -> str:
+        table = await self._build_availability_table(user_id)
+        return f"{reason}\n\n{table}"
+
     def _is_past_day(self, day: str) -> bool:
         current = self._now_provider()
 
@@ -57,25 +120,30 @@ class PlaylistService:
             return ValidationResult(allowed=False, message="유효하지 않은 요일입니다.")
 
         if self._is_past_day(day):
-            return ValidationResult(allowed=False, message=PAST_DAY_MESSAGE)
+            message = await self._build_denied_message(PAST_DAY_MESSAGE, user_id)
+            return ValidationResult(allowed=False, message=message)
 
         day_setting = await self._day_settings_repo.get(day)
         bypass_weekly_limit = False
 
         if day_setting.is_locked:
             if day_setting.exclusive_user_id is None:
-                return ValidationResult(allowed=False, message=LOCKED_MESSAGE)
+                message = await self._build_denied_message(LOCKED_MESSAGE, user_id)
+                return ValidationResult(allowed=False, message=message)
             if day_setting.exclusive_user_id != user_id:
-                return ValidationResult(allowed=False, message=EXCLUSIVE_ONLY_MESSAGE)
+                message = await self._build_denied_message(EXCLUSIVE_ONLY_MESSAGE, user_id)
+                return ValidationResult(allowed=False, message=message)
             bypass_weekly_limit = True
 
         day_count = await self._playlist_repo.count_by_day(day)
         if day_count >= MAX_SONGS_PER_DAY:
-            return ValidationResult(allowed=False, message=DAY_FULL_MESSAGE)
+            message = await self._build_denied_message(DAY_FULL_MESSAGE, user_id)
+            return ValidationResult(allowed=False, message=message)
 
         weekly_count = await self._user_stats_repo.get_count(user_id)
         if (not bypass_weekly_limit) and weekly_count >= MAX_WEEKLY_SONGS_PER_USER:
-            return ValidationResult(allowed=False, message=WEEKLY_LIMIT_MESSAGE)
+            message = await self._build_denied_message(WEEKLY_LIMIT_MESSAGE, user_id)
+            return ValidationResult(allowed=False, message=message)
 
         return ValidationResult(
             allowed=True,
@@ -93,7 +161,8 @@ class PlaylistService:
         if day not in DAY_CHOICES:
             return RegisterResult(False, "유효하지 않은 요일입니다.", [])
         if self._is_past_day(day):
-            return RegisterResult(False, PAST_DAY_MESSAGE, [])
+            message = await self._build_denied_message(PAST_DAY_MESSAGE, user_id)
+            return RegisterResult(False, message, [])
 
         async with aiosqlite.connect(self._db_path) as conn:
             conn.row_factory = aiosqlite.Row
