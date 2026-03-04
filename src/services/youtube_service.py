@@ -16,7 +16,7 @@ from src.models import YouTubeResult
 class YouTubeService:
     def __init__(self, api_key: str | None = None) -> None:
         # ytmusicapi public search does not require API key.
-        self._service = YTMusic()
+        self._service = YTMusic(language="ko", region="KR")
         self._api_key = api_key
 
     async def search_music(self, query: str, limit: int = 3) -> list[YouTubeResult]:
@@ -123,6 +123,7 @@ class YouTubeService:
                 "id": ",".join(video_ids),
                 "key": self._api_key,
                 "maxResults": len(video_ids),
+                "hl": "ko",
             }
         )
 
@@ -150,4 +151,6 @@ class YouTubeService:
         cleaned = unescape((artist or "").strip())
         if cleaned.endswith(" - Topic"):
             return cleaned[: -len(" - Topic")].strip()
+        if cleaned.endswith(" - 주제"):
+            return cleaned[: -len(" - 주제")].strip()
         return cleaned
