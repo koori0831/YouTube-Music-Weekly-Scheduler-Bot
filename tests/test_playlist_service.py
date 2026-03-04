@@ -229,10 +229,10 @@ async def test_register_song_blocks_past_day_by_server_weekday(app_ctx):
 
 
 @pytest.mark.asyncio
-async def test_logical_day_boundary_before_3am_allows_previous_weekday(app_ctx):
+async def test_logical_day_boundary_before_0040_allows_previous_weekday(app_ctx):
     service = app_ctx["service"]
     now_box = app_ctx["now_box"]
-    now_box["value"] = datetime(2026, 3, 4, 2, 30, 0)  # Wednesday 02:30 -> logical Tuesday
+    now_box["value"] = datetime(2026, 3, 4, 0, 30, 0)  # Wednesday 00:30 -> logical Tuesday
 
     validation = await service.validate_request(9991, "화")
 
@@ -251,7 +251,7 @@ async def test_after_sunday_reset_time_all_weekdays_are_open(app_ctx):
 
 
 @pytest.mark.asyncio
-async def test_past_day_message_includes_next_week_notice_after_friday_3am(app_ctx):
+async def test_past_day_message_includes_next_week_notice_after_friday_0040(app_ctx):
     service = app_ctx["service"]
     now_box = app_ctx["now_box"]
     now_box["value"] = datetime(2026, 3, 6, 4, 0, 0)  # Friday 04:00
@@ -260,7 +260,7 @@ async def test_past_day_message_includes_next_week_notice_after_friday_3am(app_c
 
     assert validation.allowed is False
     assert validation.message is not None
-    assert "🕘 금요일 03:00 이후에는 곡 신청이 잠기며, 일요일 09:00부터 다시 신청 가능합니다." in validation.message
+    assert "🕘 금요일 00:40 이후에는 곡 신청이 잠기며, 일요일 09:00부터 다시 신청 가능합니다." in validation.message
 
 
 @pytest.mark.asyncio

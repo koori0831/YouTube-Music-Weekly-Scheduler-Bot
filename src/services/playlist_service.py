@@ -35,6 +35,9 @@ class PlaylistService:
         self._user_stats_repo = user_stats_repo
         self._now_provider = now_provider or datetime.now
 
+    def _is_after_friday_cutoff(self, current: datetime) -> bool:
+        return current.weekday() == 4 and (current.hour, current.minute) >= (0, 40)
+
     def _get_available_days(self, current: datetime, logical_weekday: int) -> list[str]:
         if current.weekday() == 6 and current.hour >= 9:
             return DAY_CHOICES.copy()
@@ -53,7 +56,7 @@ class PlaylistService:
 
     async def _build_availability_table(self, user_id: int) -> str:
         current = self._now_provider()
-        shifted = current - timedelta(hours=3)
+        shifted = current - timedelta(minutes=40)
         logical_weekday = shifted.weekday()
         time_allowed_days = set(self._get_available_days(current, logical_weekday))
 
@@ -86,8 +89,8 @@ class PlaylistService:
         ]
         if not available_days:
             lines.append("⚠️ 현재 신청 가능한 요일이 없습니다.")
-        if current.weekday() == 4 and current.hour >= 3:
-            lines.append("🕘 금요일 03:00 이후에는 곡 신청이 잠기며, 일요일 09:00부터 다시 신청 가능합니다.")
+        if self._is_after_friday_cutoff(current):
+            lines.append("🕘 금요일 00:40 이후에는 곡 신청이 잠기며, 일요일 09:00부터 다시 신청 가능합니다.")
         return "\n".join(lines)
 
     async def _build_denied_message(self, reason: str, user_id: int) -> str:
@@ -101,7 +104,7 @@ class PlaylistService:
         if current.weekday() == 6 and current.hour >= 9:
             return False
 
-        shifted = current - timedelta(hours=3)
+        shifted = current - timedelta(minutes=40)
         logical_weekday = shifted.weekday()
 
         # Logical Saturday/Sunday has no past-day restriction for weekday playlists.

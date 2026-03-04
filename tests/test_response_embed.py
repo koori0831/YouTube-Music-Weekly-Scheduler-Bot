@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import discord
 
@@ -13,7 +13,7 @@ def test_build_status_embed_parses_status_lines() -> None:
         "🔒 잠금(상점 사용): 없음\n"
         "📦 플리 꽉참: 없음\n"
         "⚠️ 현재 신청 가능한 요일이 없습니다.\n"
-        "🕘 금요일 03:00 이후에는 곡 신청이 잠깁니다."
+        "🕘 금요일 00:40 이후에는 곡 신청이 잠깁니다."
     )
 
     embed = build_status_embed(message, title="신청 불가")
