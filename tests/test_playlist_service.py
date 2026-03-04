@@ -1,12 +1,19 @@
 ﻿from __future__ import annotations
 
 import tempfile
+from datetime import datetime
 from pathlib import Path
 
 import pytest
 import pytest_asyncio
 
-from src.constants import DAY_FULL_MESSAGE, EXCLUSIVE_ONLY_MESSAGE, LOCKED_MESSAGE, WEEKLY_LIMIT_MESSAGE
+from src.constants import (
+    DAY_FULL_MESSAGE,
+    EXCLUSIVE_ONLY_MESSAGE,
+    LOCKED_MESSAGE,
+    PAST_DAY_MESSAGE,
+    WEEKLY_LIMIT_MESSAGE,
+)
 from src.db.database import DatabaseManager
 from src.db.repositories import (
     DaySettingsRepository,
@@ -28,11 +35,18 @@ async def app_ctx():
         day_settings_repo = DaySettingsRepository(db_path)
         user_stats_repo = UserStatsRepository(db_path)
         meta_repo = MetaRepository(db_path)
+
+        now_box = {"value": datetime(2026, 3, 2, 12, 0, 0)}  # Monday
+
+        def now_provider() -> datetime:
+            return now_box["value"]
+
         service = PlaylistService(
             db_path=db_path,
             playlist_repo=playlist_repo,
             day_settings_repo=day_settings_repo,
             user_stats_repo=user_stats_repo,
+            now_provider=now_provider,
         )
 
         yield {
@@ -42,6 +56,7 @@ async def app_ctx():
             "user_stats_repo": user_stats_repo,
             "meta_repo": meta_repo,
             "service": service,
+            "now_box": now_box,
         }
 
 
@@ -177,3 +192,49 @@ async def test_reset_all_repositories_restore_initial_state(app_ctx):
     assert monday.is_locked is False
     assert monday.exclusive_user_id is None
     assert await meta_repo.get("last_weekly_reset_date") is None
+
+
+@pytest.mark.asyncio
+async def test_validate_request_blocks_past_day_by_server_weekday(app_ctx):
+    service = app_ctx["service"]
+    now_box = app_ctx["now_box"]
+    now_box["value"] = datetime(2026, 3, 4, 10, 0, 0)  # Wednesday
+
+    validation = await service.validate_request(7777, "화")
+
+    assert validation.allowed is False
+    assert validation.message == PAST_DAY_MESSAGE
+
+
+@pytest.mark.asyncio
+async def test_register_song_blocks_past_day_by_server_weekday(app_ctx):
+    service = app_ctx["service"]
+    now_box = app_ctx["now_box"]
+    now_box["value"] = datetime(2026, 3, 5, 10, 0, 0)  # Thursday
+
+    result = await service.register_song(8888, "월", "song", "url")
+
+    assert result.success is False
+    assert result.message == PAST_DAY_MESSAGE
+
+
+@pytest.mark.asyncio
+async def test_logical_day_boundary_before_3am_allows_previous_weekday(app_ctx):
+    service = app_ctx["service"]
+    now_box = app_ctx["now_box"]
+    now_box["value"] = datetime(2026, 3, 4, 2, 30, 0)  # Wednesday 02:30 -> logical Tuesday
+
+    validation = await service.validate_request(9991, "화")
+
+    assert validation.allowed is True
+
+
+@pytest.mark.asyncio
+async def test_after_sunday_reset_time_all_weekdays_are_open(app_ctx):
+    service = app_ctx["service"]
+    now_box = app_ctx["now_box"]
+    now_box["value"] = datetime(2026, 3, 8, 10, 0, 0)  # Sunday 10:00
+
+    for day in ["월", "화", "수", "목", "금"]:
+        validation = await service.validate_request(9992, day)
+        assert validation.allowed is True

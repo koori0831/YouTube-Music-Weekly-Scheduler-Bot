@@ -7,6 +7,7 @@ MAX_WEEKLY_SONGS_PER_USER = 2
 
 LOCKED_MESSAGE = "이 요일 플레이리스트는 현재 잠겨 있습니다."
 EXCLUSIVE_ONLY_MESSAGE = "상점 사용 플리입니다."
+PAST_DAY_MESSAGE = "이미 지난 요일입니다."
 DAY_FULL_MESSAGE = "해당 요일 플레이리스트가 가득 찼습니다."
 WEEKLY_LIMIT_MESSAGE = "주간 신청 가능 횟수(2곡)를 모두 사용했습니다."
 NO_RESULTS_MESSAGE = "조건에 맞는 음악 검색 결과를 찾지 못했습니다."

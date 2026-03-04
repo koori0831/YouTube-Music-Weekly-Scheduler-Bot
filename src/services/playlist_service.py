@@ -1,5 +1,8 @@
 ﻿from __future__ import annotations
 
+from collections.abc import Callable
+from datetime import datetime, timedelta
+
 import aiosqlite
 
 from src.constants import (
@@ -9,6 +12,7 @@ from src.constants import (
     LOCKED_MESSAGE,
     MAX_SONGS_PER_DAY,
     MAX_WEEKLY_SONGS_PER_USER,
+    PAST_DAY_MESSAGE,
     REGISTER_SUCCESS_MESSAGE,
     WEEKLY_LIMIT_MESSAGE,
 )
@@ -23,15 +27,37 @@ class PlaylistService:
         playlist_repo: PlaylistRepository,
         day_settings_repo: DaySettingsRepository,
         user_stats_repo: UserStatsRepository,
+        now_provider: Callable[[], datetime] | None = None,
     ) -> None:
         self._db_path = db_path
         self._playlist_repo = playlist_repo
         self._day_settings_repo = day_settings_repo
         self._user_stats_repo = user_stats_repo
+        self._now_provider = now_provider or datetime.now
+
+    def _is_past_day(self, day: str) -> bool:
+        current = self._now_provider()
+
+        # Weekly reset runs at Sunday 09:00. After reset, all weekday playlists are open.
+        if current.weekday() == 6 and current.hour >= 9:
+            return False
+
+        shifted = current - timedelta(hours=3)
+        logical_weekday = shifted.weekday()
+
+        # Logical Saturday/Sunday has no past-day restriction for weekday playlists.
+        if logical_weekday >= 5:
+            return False
+
+        request_day_index = DAY_CHOICES.index(day)
+        return request_day_index < logical_weekday
 
     async def validate_request(self, user_id: int, day: str) -> ValidationResult:
         if day not in DAY_CHOICES:
             return ValidationResult(allowed=False, message="유효하지 않은 요일입니다.")
+
+        if self._is_past_day(day):
+            return ValidationResult(allowed=False, message=PAST_DAY_MESSAGE)
 
         day_setting = await self._day_settings_repo.get(day)
         bypass_weekly_limit = False
@@ -64,6 +90,11 @@ class PlaylistService:
         title: str,
         url: str,
     ) -> RegisterResult:
+        if day not in DAY_CHOICES:
+            return RegisterResult(False, "유효하지 않은 요일입니다.", [])
+        if self._is_past_day(day):
+            return RegisterResult(False, PAST_DAY_MESSAGE, [])
+
         async with aiosqlite.connect(self._db_path) as conn:
             conn.row_factory = aiosqlite.Row
             try:
