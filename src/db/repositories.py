@@ -59,6 +59,13 @@ class PlaylistRepository:
             await conn.commit()
             return int(deleted)
 
+    async def delete_by_id(self, song_id: int) -> bool:
+        async with aiosqlite.connect(self._db_path) as conn:
+            cursor = await conn.execute("DELETE FROM playlists WHERE id = ?", (song_id,))
+            deleted = cursor.rowcount if cursor.rowcount is not None else 0
+            await conn.commit()
+            return int(deleted) > 0
+
 
 class DaySettingsRepository:
     def __init__(self, db_path: str) -> None:

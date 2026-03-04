@@ -4,6 +4,7 @@ DAY_CHOICES: list[str] = ["월", "화", "수", "목", "금"]
 
 MAX_SONGS_PER_DAY = 12
 MAX_WEEKLY_SONGS_PER_USER = 2
+MAX_SONG_DURATION_SECONDS = 4 * 60 + 30
 
 LOCKED_MESSAGE = "이 요일 플레이리스트는 현재 잠겨 있습니다."
 EXCLUSIVE_ONLY_MESSAGE = "상점 사용 플리입니다."
@@ -13,5 +14,6 @@ WEEKLY_LIMIT_MESSAGE = "주간 신청 가능 횟수(2곡)를 모두 사용했습
 NO_RESULTS_MESSAGE = "조건에 맞는 음악 검색 결과를 찾지 못했습니다."
 UNAUTHORIZED_BUTTON_MESSAGE = "요청자만 선택할 수 있습니다."
 REGISTER_SUCCESS_MESSAGE = "곡이 플레이리스트에 등록되었습니다."
+LONG_SONG_MESSAGE = "곡이 너무 길어요! 4분 30초 이내의 곡만 신청 가능합니다."
 
 RESET_META_KEY = "last_weekly_reset_date"

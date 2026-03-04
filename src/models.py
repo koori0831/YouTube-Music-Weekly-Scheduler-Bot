@@ -18,6 +18,7 @@ class YouTubeResult:
     url: str
     artist: str | None = None
     thumbnail_url: str | None = None
+    duration_seconds: int | None = None
 
     @property
     def display_title(self) -> str:

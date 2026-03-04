@@ -2,7 +2,12 @@
 
 import discord
 
-from src.constants import MAX_SONGS_PER_DAY, UNAUTHORIZED_BUTTON_MESSAGE
+from src.constants import (
+    LONG_SONG_MESSAGE,
+    MAX_SONG_DURATION_SECONDS,
+    MAX_SONGS_PER_DAY,
+    UNAUTHORIZED_BUTTON_MESSAGE,
+)
 from src.models import YouTubeResult
 from src.services.playlist_service import PlaylistService
 from src.utils.response_embed import build_song_list_embed, build_status_embed
@@ -59,9 +64,16 @@ class SongSelectView(discord.ui.View):
             await interaction.response.send_message("이미 선택이 완료되었습니다.", ephemeral=True)
             return
 
-        self._completed = True
         selected = self.results[index]
         selected_display = selected.display_title
+        if (
+            selected.duration_seconds is not None
+            and selected.duration_seconds > MAX_SONG_DURATION_SECONDS
+        ):
+            await interaction.response.send_message(LONG_SONG_MESSAGE, ephemeral=True)
+            return
+
+        self._completed = True
 
         result = await self.playlist_service.register_song(
             user_id=self.requester_id,

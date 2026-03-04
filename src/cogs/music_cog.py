@@ -295,6 +295,63 @@ class MusicCog(commands.Cog):
         )
         await interaction.response.send_message(embed=embed)
 
+    @app_commands.command(name="삭제", description="해당 요일 플레이리스트에서 번호로 곡을 삭제합니다.")
+    @app_commands.default_permissions(administrator=True, manage_guild=True)
+    @app_commands.describe(요일="삭제할 곡의 요일", 번호="해당 요일 플레이리스트 번호(1부터 시작)")
+    @app_commands.choices(
+        요일=[app_commands.Choice(name=day, value=day) for day in DAY_CHOICES]
+    )
+    async def delete_song(
+        self,
+        interaction: discord.Interaction,
+        요일: app_commands.Choice[str],
+        번호: int,
+    ) -> None:
+        if not self._is_admin(interaction):
+            await interaction.response.send_message("관리자 권한이 필요합니다.", ephemeral=True)
+            return
+
+        day = 요일.value
+        songs = await self.playlist_repo.list_by_day(day)
+        if not songs:
+            await interaction.response.send_message(
+                f"{day}요일 플레이리스트가 비어 있어 삭제할 곡이 없습니다.",
+                ephemeral=True,
+            )
+            return
+
+        if 번호 < 1 or 번호 > len(songs):
+            await interaction.response.send_message(
+                f"유효하지 않은 번호입니다. 현재 {day}요일은 1번부터 {len(songs)}번까지 있습니다.",
+                ephemeral=True,
+            )
+            return
+
+        target = songs[번호 - 1]
+        song_id = int(target["id"])
+        deleted = await self.playlist_repo.delete_by_id(song_id)
+        if not deleted:
+            await interaction.response.send_message(
+                "삭제에 실패했습니다. 잠시 후 다시 시도해주세요.",
+                ephemeral=True,
+            )
+            return
+
+        title = format_song_display(str(target["title"]))
+        requester_id = int(target["user_id"])
+        requester_mention = f"<@{requester_id}>"
+        deleter_mention = interaction.user.mention
+
+        await interaction.response.send_message(
+            (
+                f"🗑️ {day}요일 플레이리스트 {번호}번 곡이 삭제되었습니다.\n"
+                f"곡: **{title}**\n"
+                f"삭제자: {deleter_mention}\n"
+                f"신청자: {requester_mention}\n"
+                "삭제 사유는 삭제자에게 문의해주세요."
+            )
+        )
+
     @app_commands.command(name="db초기화", description="DB 데이터를 초기 상태로 초기화합니다.")
     @app_commands.default_permissions(administrator=True, manage_guild=True)
     @app_commands.describe(확인='실행하려면 "초기화"를 입력하세요')

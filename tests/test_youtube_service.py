@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from src.services import youtube_service
 
@@ -41,7 +41,7 @@ def test_search_music_uses_data_api_metadata_and_strips_topic(monkeypatch):
             }
         ]
     )
-    monkeypatch.setattr(youtube_service, "YTMusic", lambda: fake)
+    monkeypatch.setattr(youtube_service, "YTMusic", lambda *args, **kwargs: fake)
 
     svc = youtube_service.YouTubeService(api_key="key")
     monkeypatch.setattr(
@@ -58,6 +58,7 @@ def test_search_music_uses_data_api_metadata_and_strips_topic(monkeypatch):
                         "high": {"url": "https://img/big.jpg", "width": 480, "height": 360},
                     },
                 },
+                "contentDetails": {"duration": "PT4M31S"},
             }
         },
     )
@@ -68,6 +69,7 @@ def test_search_music_uses_data_api_metadata_and_strips_topic(monkeypatch):
     assert results[0].title == "real title"
     assert results[0].artist == "real artist"
     assert results[0].thumbnail_url == "https://img/big.jpg"
+    assert results[0].duration_seconds == 271
 
 
 def test_search_music_falls_back_to_search_fields_when_metadata_missing(monkeypatch):
@@ -78,10 +80,11 @@ def test_search_music_falls_back_to_search_fields_when_metadata_missing(monkeypa
                 "title": "fallback title",
                 "artists": [{"name": "fallback artist - Topic"}],
                 "thumbnails": [{"url": "https://img/fallback.jpg"}],
+                "duration": "4:29",
             }
         ]
     )
-    monkeypatch.setattr(youtube_service, "YTMusic", lambda: fake)
+    monkeypatch.setattr(youtube_service, "YTMusic", lambda *args, **kwargs: fake)
 
     svc = youtube_service.YouTubeService(api_key="key")
     monkeypatch.setattr(svc, "_fetch_video_metadata", lambda ids: {})
@@ -92,11 +95,12 @@ def test_search_music_falls_back_to_search_fields_when_metadata_missing(monkeypa
     assert results[0].title == "fallback title"
     assert results[0].artist == "fallback artist"
     assert results[0].thumbnail_url == "https://img/fallback.jpg"
+    assert results[0].duration_seconds == 269
 
 
 def test_fetch_video_metadata_parses_items(monkeypatch):
     fake = _FakeYTMusic(items=[])
-    monkeypatch.setattr(youtube_service, "YTMusic", lambda: fake)
+    monkeypatch.setattr(youtube_service, "YTMusic", lambda *args, **kwargs: fake)
 
     payload = b'{"items":[{"id":"vid1","snippet":{"title":"t"}}]}'
     monkeypatch.setattr(youtube_service, "urlopen", lambda *args, **kwargs: _FakeResponse(payload))
