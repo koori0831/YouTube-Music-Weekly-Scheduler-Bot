@@ -16,7 +16,7 @@ from src.models import YouTubeResult
 class YouTubeService:
     def __init__(self, api_key: str | None = None) -> None:
         # ytmusicapi public search does not require API key.
-        self._service = YTMusic(language="ko", region="KR")
+        self._service = YTMusic(language="ko", location="KR")
         self._api_key = api_key
 
     async def search_music(self, query: str, limit: int = 3) -> list[YouTubeResult]:
