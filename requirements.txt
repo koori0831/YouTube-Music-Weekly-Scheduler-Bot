@@ -1,7 +1,7 @@
-﻿discord.py>=2.4.0
-aiosqlite>=0.20.0
-ytmusicapi>=1.10.3
-python-dotenv>=1.0.1
-tzdata>=2025.2
-pytest>=8.2.0
-pytest-asyncio>=0.23.7
+﻿discord.py
+aiosqlite
+ytmusicapi
+python-dotenv
+tzdata
+pytest
+pytest-asyncio
