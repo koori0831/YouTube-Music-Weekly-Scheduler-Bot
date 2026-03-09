@@ -19,32 +19,47 @@ class YouTubeService:
     def __init__(self, api_key: str | None = None) -> None:
         # ytmusicapi public search does not require API key.
         self._service = YTMusic(language="ko", location="KR")
-        proxy = self._resolve_proxy()
-        if proxy:
-            self._service.proxies = {"http": proxy, "https": proxy}
+        self._proxies = self._resolve_proxies()
+        if self._proxies:
+            self._service.proxies = {"http": self._proxies[0], "https": self._proxies[0]}
         self._api_key = api_key
 
-    def _resolve_proxy(self) -> str | None:
+    def _resolve_proxies(self) -> list[str]:
         proxies_raw = os.getenv("YTMUSIC_PROXIES", "")
         if proxies_raw.strip():
             addresses = [entry.strip() for entry in re.split(r"[,\r\n;]+", proxies_raw) if entry.strip()]
             if addresses:
-                return addresses[0]
+                return addresses
 
         proxy = os.getenv("HTTPS_PROXY") or os.getenv("HTTP_PROXY")
         if proxy and proxy.strip():
-            return proxy.strip()
-        return None
+            return [proxy.strip()]
+        return []
 
     async def search_music(self, query: str, limit: int = 3) -> list[YouTubeResult]:
         return await asyncio.to_thread(self._search_music_sync, query, limit)
 
     def _search_music_sync(self, query: str, limit: int) -> list[YouTubeResult]:
-        primary_items = self._service.search(query, filter="songs", limit=limit)
+        if self._proxies:
+            for proxy in self._proxies:
+                service = YTMusic(language="ko", location="KR")
+                service.proxies = {"http": proxy, "https": proxy}
+                results = self._search_music_with_service(service, query, limit)
+                if results:
+                    return results
+
+            # All configured proxies returned no result: run existing fallback logic as-is.
+            service_without_proxy = YTMusic(language="ko", location="KR")
+            return self._search_music_with_service(service_without_proxy, query, limit)
+
+        return self._search_music_with_service(self._service, query, limit)
+
+    def _search_music_with_service(self, service: YTMusic, query: str, limit: int) -> list[YouTubeResult]:
+        primary_items = service.search(query, filter="songs", limit=limit)
 
         fallback_items: list[dict[str, Any]] = []
         if len(primary_items) < limit:
-            fallback_items = self._service.search(query, filter="videos", limit=limit * 2)
+            fallback_items = service.search(query, filter="videos", limit=limit * 2)
 
         seen_video_ids: set[str] = set()
         candidate_items: list[tuple[str, dict[str, Any]]] = []
