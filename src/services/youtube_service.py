@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import re
 from html import unescape
 from typing import Any
@@ -18,7 +19,22 @@ class YouTubeService:
     def __init__(self, api_key: str | None = None) -> None:
         # ytmusicapi public search does not require API key.
         self._service = YTMusic(language="ko", location="KR")
+        proxy = self._resolve_proxy()
+        if proxy:
+            self._service.proxies = {"http": proxy, "https": proxy}
         self._api_key = api_key
+
+    def _resolve_proxy(self) -> str | None:
+        proxies_raw = os.getenv("YTMUSIC_PROXIES", "")
+        if proxies_raw.strip():
+            addresses = [entry.strip() for entry in re.split(r"[,\r\n;]+", proxies_raw) if entry.strip()]
+            if addresses:
+                return addresses[0]
+
+        proxy = os.getenv("HTTPS_PROXY") or os.getenv("HTTP_PROXY")
+        if proxy and proxy.strip():
+            return proxy.strip()
+        return None
 
     async def search_music(self, query: str, limit: int = 3) -> list[YouTubeResult]:
         return await asyncio.to_thread(self._search_music_sync, query, limit)
