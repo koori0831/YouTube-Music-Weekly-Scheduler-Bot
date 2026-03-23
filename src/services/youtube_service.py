@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import os
 import re
 from html import unescape
 from typing import Any
@@ -13,28 +12,18 @@ from urllib.request import urlopen
 from ytmusicapi import YTMusic
 
 from src.models import YouTubeResult
+from src.services.proxy_service import ProxyService
 
 
 class YouTubeService:
-    def __init__(self, api_key: str | None = None) -> None:
+    def __init__(self, api_key: str | None = None, proxy_service: ProxyService | None = None) -> None:
         # ytmusicapi public search does not require API key.
         self._service = YTMusic(language="ko", location="KR")
-        self._proxies = self._resolve_proxies()
+        self._proxy_service = proxy_service or ProxyService()
+        self._proxies = self._proxy_service.get_proxies()
         if self._proxies:
             self._service.proxies = {"http": self._proxies[0], "https": self._proxies[0]}
         self._api_key = api_key
-
-    def _resolve_proxies(self) -> list[str]:
-        proxies_raw = os.getenv("YTMUSIC_PROXIES", "")
-        if proxies_raw.strip():
-            addresses = [entry.strip() for entry in re.split(r"[,\r\n;]+", proxies_raw) if entry.strip()]
-            if addresses:
-                return addresses
-
-        proxy = os.getenv("HTTPS_PROXY") or os.getenv("HTTP_PROXY")
-        if proxy and proxy.strip():
-            return [proxy.strip()]
-        return []
 
     async def search_music(self, query: str, limit: int = 3) -> list[YouTubeResult]:
         return await asyncio.to_thread(self._search_music_sync, query, limit)
