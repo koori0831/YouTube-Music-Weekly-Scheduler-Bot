@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import re
 from html import unescape
 from typing import Any
@@ -13,6 +14,8 @@ from ytmusicapi import YTMusic
 
 from src.models import YouTubeResult
 from src.services.proxy_service import ProxyService
+
+logger = logging.getLogger(__name__)
 
 
 class YouTubeService:
@@ -28,20 +31,74 @@ class YouTubeService:
     async def search_music(self, query: str, limit: int = 3) -> list[YouTubeResult]:
         return await asyncio.to_thread(self._search_music_sync, query, limit)
 
+    def _create_service(self, proxy: str | None = None) -> YTMusic:
+        service = YTMusic(language="ko", location="KR")
+        if proxy:
+            service.proxies = {"http": proxy, "https": proxy}
+        return service
+
     def _search_music_sync(self, query: str, limit: int) -> list[YouTubeResult]:
+        errors: list[str] = []
+
         if self._proxies:
             for proxy in self._proxies:
-                service = YTMusic(language="ko", location="KR")
-                service.proxies = {"http": proxy, "https": proxy}
-                results = self._search_music_with_service(service, query, limit)
+                results = self._search_with_fallback(
+                    service=self._create_service(proxy),
+                    query=query,
+                    limit=limit,
+                    errors=errors,
+                    source=f"proxy={proxy}",
+                )
                 if results:
                     return results
 
-            # All configured proxies returned no result: run existing fallback logic as-is.
-            service_without_proxy = YTMusic(language="ko", location="KR")
-            return self._search_music_with_service(service_without_proxy, query, limit)
+            fallback_results = self._search_with_fallback(
+                service=self._create_service(),
+                query=query,
+                limit=limit,
+                errors=errors,
+                source="direct",
+            )
+            if fallback_results:
+                return fallback_results
+        else:
+            direct_results = self._search_with_fallback(
+                service=self._service,
+                query=query,
+                limit=limit,
+                errors=errors,
+                source="shared-direct",
+            )
+            if direct_results:
+                return direct_results
 
-        return self._search_music_with_service(self._service, query, limit)
+            fresh_results = self._search_with_fallback(
+                service=self._create_service(),
+                query=query,
+                limit=limit,
+                errors=errors,
+                source="fresh-direct",
+            )
+            if fresh_results:
+                return fresh_results
+
+        if errors:
+            logger.warning("YouTube search failed for query=%r: %s", query, " | ".join(errors))
+        return []
+
+    def _search_with_fallback(
+        self,
+        service: YTMusic,
+        query: str,
+        limit: int,
+        errors: list[str],
+        source: str,
+    ) -> list[YouTubeResult]:
+        try:
+            return self._search_music_with_service(service, query, limit)
+        except Exception as exc:
+            errors.append(f"{source}: {exc}")
+            return []
 
     def _search_music_with_service(self, service: YTMusic, query: str, limit: int) -> list[YouTubeResult]:
         primary_items = service.search(query, filter="songs", limit=limit)
