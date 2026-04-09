@@ -3,9 +3,9 @@
 import discord
 
 from src.constants import (
+    get_max_songs_for_day,
     LONG_SONG_MESSAGE,
     MAX_SONG_DURATION_SECONDS,
-    MAX_SONGS_PER_DAY,
     UNAUTHORIZED_BUTTON_MESSAGE,
 )
 from src.models import YouTubeResult
@@ -95,7 +95,7 @@ class SongSelectView(discord.ui.View):
                     f"{interaction.user.mention} 님이 곡을 신청했습니다.\n"
                     f"선택한 곡: **{selected_display}**"
                 ),
-                max_songs=MAX_SONGS_PER_DAY,
+                max_songs=get_max_songs_for_day(self.day),
             )
             if interaction.channel is not None:
                 await interaction.channel.send(embed=public_embed)

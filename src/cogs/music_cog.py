@@ -6,7 +6,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from src.constants import DAY_CHOICES, MAX_SONGS_PER_DAY, NO_RESULTS_MESSAGE
+from src.constants import DAY_CHOICES, MAX_SONGS_PER_DAY, NO_RESULTS_MESSAGE, get_max_songs_for_day
 from src.db.repositories import (
     DaySettingsRepository,
     MetaRepository,
@@ -109,7 +109,7 @@ class MusicCog(commands.Cog):
             name="기본 룰",
             value=(
                 "- 운영 요일: 월~금\n"
-                "- 요일당 최대 12곡\n"
+                f"- 월~목 최대 {MAX_SONGS_PER_DAY}곡 / 금요일 최대 {get_max_songs_for_day('금')}곡\n"
                 "- 일반 유저 주간 최대 2곡\n"
                 "- 매주 일요일 09:00(KST) 자동 초기화"
             ),
@@ -264,7 +264,7 @@ class MusicCog(commands.Cog):
             title=f"{day}요일 현재 현황",
             songs=titles,
             kind="view",
-            max_songs=MAX_SONGS_PER_DAY,
+            max_songs=get_max_songs_for_day(day),
             empty_text=f"{day}요일 플레이리스트가 비어 있습니다.",
         )
         await interaction.response.send_message(embed=embed)

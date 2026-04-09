@@ -3,6 +3,7 @@
 DAY_CHOICES: list[str] = ["월", "화", "수", "목", "금"]
 
 MAX_SONGS_PER_DAY = 12
+FRIDAY_MAX_SONGS_PER_DAY = 15
 MAX_WEEKLY_SONGS_PER_USER = 2
 MAX_SONG_DURATION_SECONDS = 4 * 60 + 30
 
@@ -17,3 +18,9 @@ REGISTER_SUCCESS_MESSAGE = "곡이 플레이리스트에 등록되었습니다."
 LONG_SONG_MESSAGE = "곡이 너무 길어요! 4분 30초 이내의 곡만 신청 가능합니다."
 
 RESET_META_KEY = "last_weekly_reset_date"
+
+
+def get_max_songs_for_day(day: str) -> int:
+    if day == "금":
+        return FRIDAY_MAX_SONGS_PER_DAY
+    return MAX_SONGS_PER_DAY

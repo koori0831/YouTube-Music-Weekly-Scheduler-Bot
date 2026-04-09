@@ -9,8 +9,8 @@ from src.constants import (
     DAY_CHOICES,
     DAY_FULL_MESSAGE,
     EXCLUSIVE_ONLY_MESSAGE,
+    get_max_songs_for_day,
     LOCKED_MESSAGE,
-    MAX_SONGS_PER_DAY,
     MAX_WEEKLY_SONGS_PER_USER,
     PAST_DAY_MESSAGE,
     REGISTER_SUCCESS_MESSAGE,
@@ -78,7 +78,7 @@ class PlaylistService:
         for target_day in DAY_CHOICES:
             day_setting = await self._day_settings_repo.get(target_day)
             day_count = await self._playlist_repo.count_by_day(target_day)
-            is_full = day_count >= MAX_SONGS_PER_DAY
+            is_full = day_count >= get_max_songs_for_day(target_day)
             is_locked_for_user = day_setting.is_locked and day_setting.exclusive_user_id != user_id
 
             if is_locked_for_user:
@@ -133,7 +133,7 @@ class PlaylistService:
             bypass_weekly_limit = True
 
         day_count = await self._playlist_repo.count_by_day(day)
-        if day_count >= MAX_SONGS_PER_DAY:
+        if day_count >= get_max_songs_for_day(day):
             message = await self._build_denied_message(DAY_FULL_MESSAGE, user_id)
             return ValidationResult(allowed=False, message=message)
 
@@ -198,7 +198,7 @@ class PlaylistService:
                 )
                 count_row = await cursor.fetchone()
                 day_count = int(count_row["c"]) if count_row else 0
-                if day_count >= MAX_SONGS_PER_DAY:
+                if day_count >= get_max_songs_for_day(day):
                     await conn.execute("ROLLBACK")
                     return RegisterResult(False, DAY_FULL_MESSAGE, [])
 
