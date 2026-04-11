@@ -66,8 +66,10 @@ class MusicSchedulerBot(commands.Bot):
             bot=self,
             playlist_repo=self.playlist_repo,
             user_stats_repo=self.user_stats_repo,
+            day_settings_repo=self.day_settings_repo,
             meta_repo=self.meta_repo,
         )
+        await self.weekly_reset_task.run_reset_if_needed()
         self.weekly_reset_task.start()
 
     async def close(self) -> None:
@@ -100,3 +102,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+

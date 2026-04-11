@@ -7,7 +7,7 @@ import discord
 from discord.ext import tasks
 
 from src.constants import RESET_META_KEY
-from src.db.repositories import MetaRepository, PlaylistRepository, UserStatsRepository
+from src.db.repositories import DaySettingsRepository, MetaRepository, PlaylistRepository, UserStatsRepository
 
 
 class WeeklyResetTask:
@@ -16,11 +16,13 @@ class WeeklyResetTask:
         bot: discord.Client,
         playlist_repo: PlaylistRepository,
         user_stats_repo: UserStatsRepository,
+        day_settings_repo: DaySettingsRepository,
         meta_repo: MetaRepository,
     ) -> None:
         self._bot = bot
         self._playlist_repo = playlist_repo
         self._user_stats_repo = user_stats_repo
+        self._day_settings_repo = day_settings_repo
         self._meta_repo = meta_repo
         self._tz = ZoneInfo("Asia/Seoul")
 
@@ -32,11 +34,19 @@ class WeeklyResetTask:
         if self.weekly_reset_loop.is_running():
             self.weekly_reset_loop.cancel()
 
+    def _normalize_current(self, now: datetime | None) -> datetime:
+        if now is None:
+            return datetime.now(self._tz)
+        if now.tzinfo is None:
+            return now.replace(tzinfo=self._tz)
+        return now.astimezone(self._tz)
+
     async def run_reset_if_needed(self, now: datetime | None = None) -> bool:
-        current = now or datetime.now(self._tz)
-        current = current.astimezone(self._tz)
+        current = self._normalize_current(now)
 
         if current.weekday() != 6:
+            return False
+        if current.time() < time(hour=9, minute=0):
             return False
 
         today = current.date().isoformat()
@@ -46,6 +56,7 @@ class WeeklyResetTask:
 
         await self._playlist_repo.clear_all()
         await self._user_stats_repo.reset_all()
+        await self._day_settings_repo.reset_all()
         await self._meta_repo.set(RESET_META_KEY, today)
         print(f"[WeeklyResetTask] Reset completed at {current.isoformat()}")
         return True
@@ -60,3 +71,4 @@ class WeeklyResetTask:
     @weekly_reset_loop.before_loop
     async def before_weekly_reset_loop(self) -> None:
         await self._bot.wait_until_ready()
+

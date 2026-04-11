@@ -2,6 +2,8 @@
 
 from collections.abc import Callable
 from datetime import datetime
+from urllib.parse import parse_qs, urlparse
+from zoneinfo import ZoneInfo
 
 import aiosqlite
 
@@ -14,6 +16,7 @@ from src.constants import (
     MAX_WEEKLY_SONGS_PER_USER,
     PAST_DAY_MESSAGE,
     REGISTER_SUCCESS_MESSAGE,
+    WEEKLY_DUPLICATE_SONG_MESSAGE,
     WEEKLY_LIMIT_MESSAGE,
 )
 from src.db.repositories import DaySettingsRepository, PlaylistRepository, UserStatsRepository
@@ -33,29 +36,36 @@ class PlaylistService:
         self._playlist_repo = playlist_repo
         self._day_settings_repo = day_settings_repo
         self._user_stats_repo = user_stats_repo
-        self._now_provider = now_provider or datetime.now
+        self._tz = ZoneInfo("Asia/Seoul")
+        self._now_provider = now_provider or (lambda: datetime.now(self._tz))
 
-    def _is_after_friday_cutoff(self, current: datetime) -> bool:
-        return current.weekday() == 4 and (current.hour, current.minute) >= (0, 40)
+    def _normalize_current(self, current: datetime) -> datetime:
+        if current.tzinfo is None:
+            return current.replace(tzinfo=self._tz)
+        return current.astimezone(self._tz)
+
+    def _is_week_boundary_closed(self, current: datetime) -> bool:
+        return current.weekday() in (4, 5) or (current.weekday() == 6 and current.hour < 9)
 
     def _get_time_allowed_days(self, current: datetime) -> list[str]:
-        # Weekly reset runs at Sunday 09:00. After reset, all weekday playlists are open.
-        if current.weekday() == 6 and current.hour >= 9:
-            return DAY_CHOICES.copy()
-
+        current = self._normalize_current(current)
         weekday = current.weekday()
-        is_after_daily_cutoff = (current.hour, current.minute) >= (0, 40)
+        is_after_daily_cutoff = (current.hour, current.minute) >= (23, 40)
 
-        # From Friday 00:40 to Sunday 08:59 all requests are blocked.
-        if weekday == 4 and is_after_daily_cutoff:
-            return []
-        if weekday >= 5:
+        # Sunday 09:00~23:39 opens the new weekly cycle, and after 23:40 Monday closes.
+        if weekday == 6:
+            if current.hour < 9:
+                return []
+            return DAY_CHOICES[1:] if is_after_daily_cutoff else DAY_CHOICES.copy()
+
+        # Friday and Saturday have no "next weekday" target to apply for.
+        if weekday >= 4:
             return []
 
         # Monday~Thursday:
-        # before 00:40 -> current day is still available
-        # after 00:40  -> current day is closed, only future weekdays remain
-        start_index = weekday + (1 if is_after_daily_cutoff else 0)
+        # - before 23:40 -> next day and later weekdays are available
+        # - after 23:40  -> next day closes, only days after tomorrow remain
+        start_index = weekday + 1 + (1 if is_after_daily_cutoff else 0)
         return DAY_CHOICES[start_index:]
 
     def _weekday_label(self, weekday_index: int) -> str:
@@ -68,7 +78,7 @@ class PlaylistService:
         return ", ".join(f"{day}요일" for day in days)
 
     async def _build_availability_table(self, user_id: int) -> str:
-        current = self._now_provider()
+        current = self._normalize_current(self._now_provider())
         time_allowed_days = set(self._get_time_allowed_days(current))
 
         available_days: list[str] = []
@@ -93,15 +103,18 @@ class PlaylistService:
             available_days.append(target_day)
 
         lines = [
-            f"📅 서버 현재 요일: {self._weekday_label(current.weekday())}",
-            f"✅ 신청 가능 요일: {self._day_list_text(available_days)}",
-            f"🔒 잠금(상점 사용): {self._day_list_text(locked_days)}",
-            f"📦 플리 꽉참: {self._day_list_text(full_days)}",
+            f"서버 현재 요일: {self._weekday_label(current.weekday())}",
+            f"신청 가능 요일: {self._day_list_text(available_days)}",
+            f"잠금(상점 사용): {self._day_list_text(locked_days)}",
+            f"플리 꽉참: {self._day_list_text(full_days)}",
         ]
         if not available_days:
-            lines.append("⚠️ 현재 신청 가능한 요일이 없습니다.")
-        if self._is_after_friday_cutoff(current):
-            lines.append("🕘 금요일 00:40 이후에는 곡 신청이 잠기며, 일요일 09:00부터 다시 신청 가능합니다.")
+            lines.append("현재 신청 가능한 요일이 없습니다.")
+        if self._is_week_boundary_closed(current):
+            lines.append(
+                "익일 신청은 전날 23:40까지 가능합니다. "
+                "금요일~일요일 08:59에는 신청이 닫히며, 일요일 09:00부터 다시 신청 가능합니다."
+            )
         return "\n".join(lines)
 
     async def _build_denied_message(self, reason: str, user_id: int) -> str:
@@ -109,8 +122,53 @@ class PlaylistService:
         return f"{reason}\n\n{table}"
 
     def _is_past_day(self, day: str) -> bool:
-        current = self._now_provider()
+        current = self._normalize_current(self._now_provider())
         return day not in self._get_time_allowed_days(current)
+
+    def _extract_video_id(self, url: str) -> str | None:
+        parsed = urlparse(url)
+        host = (parsed.netloc or "").lower()
+        path = (parsed.path or "").strip("/")
+
+        if "youtube.com" in host:
+            if parsed.path == "/watch":
+                video_id = parse_qs(parsed.query).get("v", [""])[0].strip()
+                return video_id or None
+            if path.startswith("shorts/"):
+                video_id = path.split("/", 1)[1].strip()
+                return video_id or None
+            if path.startswith("embed/"):
+                video_id = path.split("/", 1)[1].strip()
+                return video_id or None
+
+        if host in ("youtu.be", "www.youtu.be"):
+            video_id = path.split("/", 1)[0].strip()
+            return video_id or None
+
+        return None
+
+    async def _is_duplicate_video_id(
+        self,
+        video_id: str,
+        conn: aiosqlite.Connection | None = None,
+    ) -> bool:
+        if not video_id:
+            return False
+
+        async def _check(connection: aiosqlite.Connection) -> bool:
+            cursor = await connection.execute("SELECT url FROM playlists")
+            rows = await cursor.fetchall()
+            for row in rows:
+                raw_url = str(row[0]) if row and row[0] is not None else ""
+                if self._extract_video_id(raw_url) == video_id:
+                    return True
+            return False
+
+        if conn is not None:
+            return await _check(conn)
+
+        async with aiosqlite.connect(self._db_path) as read_conn:
+            return await _check(read_conn)
 
     async def validate_request(self, user_id: int, day: str) -> ValidationResult:
         if day not in DAY_CHOICES:
@@ -159,6 +217,10 @@ class PlaylistService:
             return RegisterResult(False, "유효하지 않은 요일입니다.", [])
         if self._is_past_day(day):
             message = await self._build_denied_message(PAST_DAY_MESSAGE, user_id)
+            return RegisterResult(False, message, [])
+        selected_video_id = self._extract_video_id(url)
+        if selected_video_id and await self._is_duplicate_video_id(selected_video_id):
+            message = await self._build_denied_message(WEEKLY_DUPLICATE_SONG_MESSAGE, user_id)
             return RegisterResult(False, message, [])
 
         async with aiosqlite.connect(self._db_path) as conn:
@@ -213,6 +275,10 @@ class PlaylistService:
                     await conn.execute("ROLLBACK")
                     return RegisterResult(False, WEEKLY_LIMIT_MESSAGE, [])
 
+                if selected_video_id and await self._is_duplicate_video_id(selected_video_id, conn):
+                    await conn.execute("ROLLBACK")
+                    return RegisterResult(False, WEEKLY_DUPLICATE_SONG_MESSAGE, [])
+
                 await conn.execute(
                     """
                     INSERT INTO playlists(day_of_week, title, url, user_id)
@@ -248,3 +314,4 @@ class PlaylistService:
             except Exception:
                 await conn.rollback()
                 raise
+

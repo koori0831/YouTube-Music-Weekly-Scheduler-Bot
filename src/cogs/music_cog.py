@@ -118,9 +118,9 @@ class MusicCog(commands.Cog):
         embed.add_field(
             name="시간 규칙",
             value=(
-                "- 기준: 서버 시간\n"
-                "- 당일 00:40 이전까지는 당일 요일 신청 가능, 00:40 이후에는 해당 요일 마감\n"
-                "- 금요일 00:40 이후 신청은 일요일 09:00 이후 다시 가능"
+                "- 기준: KST(Asia/Seoul)\n"
+                "- 익일 요일 신청은 전날 23:40까지 가능\n"
+                "- 금요일~일요일 08:59에는 신청이 닫히고, 일요일 09:00부터 다시 열림"
             ),
             inline=False,
         )
@@ -403,3 +403,4 @@ async def setup(
             youtube_service=youtube_service,
         )
     )
+

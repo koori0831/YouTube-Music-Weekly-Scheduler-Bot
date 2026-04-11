@@ -12,6 +12,7 @@ from src.constants import (
     EXCLUSIVE_ONLY_MESSAGE,
     LOCKED_MESSAGE,
     PAST_DAY_MESSAGE,
+    WEEKLY_DUPLICATE_SONG_MESSAGE,
     WEEKLY_LIMIT_MESSAGE,
 )
 from src.db.database import DatabaseManager
@@ -36,7 +37,7 @@ async def app_ctx():
         user_stats_repo = UserStatsRepository(db_path)
         meta_repo = MetaRepository(db_path)
 
-        now_box = {"value": datetime(2026, 3, 2, 0, 30, 0)}  # Monday 00:30
+        now_box = {"value": datetime(2026, 3, 8, 10, 0, 0)}  # Sunday 10:00
 
         def now_provider() -> datetime:
             return now_box["value"]
@@ -101,9 +102,9 @@ async def test_locked_without_exclusive_blocks_everyone(app_ctx):
     assert validation.allowed is False
     assert validation.message is not None
     assert LOCKED_MESSAGE in validation.message
-    assert "✅ 신청 가능 요일:" in validation.message
-    assert "🔒 잠금(상점 사용):" in validation.message
-    assert "📦 플리 꽉참:" in validation.message
+    assert "신청 가능 요일:" in validation.message
+    assert "잠금(상점 사용):" in validation.message
+    assert "플리 꽉참:" in validation.message
 
 
 @pytest.mark.asyncio
@@ -210,8 +211,8 @@ async def test_validate_request_blocks_past_day_by_server_weekday(app_ctx):
     assert validation.allowed is False
     assert validation.message is not None
     assert PAST_DAY_MESSAGE in validation.message
-    assert "📅 서버 현재 요일: 수요일" in validation.message
-    assert "✅ 신청 가능 요일: 목요일, 금요일" in validation.message
+    assert "서버 현재 요일: 수요일" in validation.message
+    assert "신청 가능 요일: 목요일, 금요일" in validation.message
 
 
 @pytest.mark.asyncio
@@ -224,19 +225,21 @@ async def test_register_song_blocks_past_day_by_server_weekday(app_ctx):
 
     assert result.success is False
     assert PAST_DAY_MESSAGE in result.message
-    assert "📅 서버 현재 요일: 목요일" in result.message
-    assert "✅ 신청 가능 요일: 금요일" in result.message
+    assert "서버 현재 요일: 목요일" in result.message
+    assert "신청 가능 요일: 금요일" in result.message
 
 
 @pytest.mark.asyncio
-async def test_daily_cutoff_before_0040_allows_current_day(app_ctx):
+async def test_after_midnight_current_day_is_closed(app_ctx):
     service = app_ctx["service"]
     now_box = app_ctx["now_box"]
     now_box["value"] = datetime(2026, 3, 4, 0, 30, 0)  # Wednesday 00:30
 
     validation = await service.validate_request(9991, "수")
 
-    assert validation.allowed is True
+    assert validation.allowed is False
+    assert validation.message is not None
+    assert "신청 가능 요일: 목요일, 금요일" in validation.message
 
 
 @pytest.mark.asyncio
@@ -251,7 +254,20 @@ async def test_after_sunday_reset_time_all_weekdays_are_open(app_ctx):
 
 
 @pytest.mark.asyncio
-async def test_past_day_message_includes_next_week_notice_after_friday_0040(app_ctx):
+async def test_sunday_after_2340_blocks_monday_playlist(app_ctx):
+    service = app_ctx["service"]
+    now_box = app_ctx["now_box"]
+    now_box["value"] = datetime(2026, 3, 8, 23, 45, 0)  # Sunday 23:45
+
+    validation = await service.validate_request(9996, "월")
+
+    assert validation.allowed is False
+    assert validation.message is not None
+    assert "신청 가능 요일: 화요일, 수요일, 목요일, 금요일" in validation.message
+
+
+@pytest.mark.asyncio
+async def test_past_day_message_includes_next_week_notice_on_friday(app_ctx):
     service = app_ctx["service"]
     now_box = app_ctx["now_box"]
     now_box["value"] = datetime(2026, 3, 6, 4, 0, 0)  # Friday 04:00
@@ -260,7 +276,10 @@ async def test_past_day_message_includes_next_week_notice_after_friday_0040(app_
 
     assert validation.allowed is False
     assert validation.message is not None
-    assert "🕘 금요일 00:40 이후에는 곡 신청이 잠기며, 일요일 09:00부터 다시 신청 가능합니다." in validation.message
+    assert (
+        "익일 신청은 전날 23:40까지 가능합니다. 금요일~일요일 08:59에는 신청이 닫히며, "
+        "일요일 09:00부터 다시 신청 가능합니다."
+    ) in validation.message
 
 
 @pytest.mark.asyncio
@@ -270,7 +289,6 @@ async def test_denied_message_shows_no_available_days_when_none(app_ctx):
     now_box = app_ctx["now_box"]
     now_box["value"] = datetime(2026, 3, 4, 10, 0, 0)  # Wednesday
 
-    await day_settings_repo.set_lock("수", True, None)
     await day_settings_repo.set_lock("목", True, None)
     await day_settings_repo.set_lock("금", True, None)
 
@@ -278,21 +296,21 @@ async def test_denied_message_shows_no_available_days_when_none(app_ctx):
 
     assert validation.allowed is False
     assert validation.message is not None
-    assert "✅ 신청 가능 요일: 없음" in validation.message
-    assert "⚠️ 현재 신청 가능한 요일이 없습니다." in validation.message
+    assert "신청 가능 요일: 없음" in validation.message
+    assert "현재 신청 가능한 요일이 없습니다." in validation.message
 
 
 @pytest.mark.asyncio
-async def test_thursday_after_0040_blocks_thursday_playlist(app_ctx):
+async def test_thursday_after_2340_blocks_friday_playlist(app_ctx):
     service = app_ctx["service"]
     now_box = app_ctx["now_box"]
-    now_box["value"] = datetime(2026, 3, 5, 8, 46, 0)  # Thursday 08:46
+    now_box["value"] = datetime(2026, 3, 5, 23, 46, 0)  # Thursday 23:46
 
-    validation = await service.validate_request(9995, "목")
+    validation = await service.validate_request(9995, "금")
 
     assert validation.allowed is False
     assert validation.message is not None
-    assert "✅ 신청 가능 요일: 금요일" in validation.message
+    assert "신청 가능 요일: 없음" in validation.message
 
 
 @pytest.mark.asyncio
@@ -309,3 +327,49 @@ async def test_user_stats_decrement_restores_count_and_cleans_zero_row(app_ctx):
 
     await user_stats_repo.decrement(user_id)
     assert await user_stats_repo.get_count(user_id) == 0
+
+
+@pytest.mark.asyncio
+async def test_register_song_blocks_duplicate_video_id_within_week(app_ctx):
+    service = app_ctx["service"]
+
+    first = await service.register_song(
+        1001,
+        "월",
+        "song1",
+        "https://www.youtube.com/watch?v=abc123XYZ00",
+    )
+    second = await service.register_song(
+        1002,
+        "화",
+        "song2",
+        "https://www.youtube.com/watch?v=abc123XYZ00",
+    )
+
+    assert first.success is True
+    assert second.success is False
+    assert WEEKLY_DUPLICATE_SONG_MESSAGE in second.message
+
+
+@pytest.mark.asyncio
+async def test_register_song_blocks_duplicate_video_id_across_url_formats(app_ctx):
+    service = app_ctx["service"]
+
+    first = await service.register_song(
+        1001,
+        "월",
+        "song1",
+        "https://youtu.be/QWERTY12345?t=5",
+    )
+    second = await service.register_song(
+        1002,
+        "수",
+        "song2",
+        "https://www.youtube.com/watch?v=QWERTY12345&list=PL123",
+    )
+
+    assert first.success is True
+    assert second.success is False
+    assert WEEKLY_DUPLICATE_SONG_MESSAGE in second.message
+
+

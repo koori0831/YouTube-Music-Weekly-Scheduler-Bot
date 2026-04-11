@@ -13,7 +13,7 @@ def test_build_status_embed_parses_status_lines() -> None:
         "🔒 잠금(상점 사용): 없음\n"
         "📦 플리 꽉참: 없음\n"
         "⚠️ 현재 신청 가능한 요일이 없습니다.\n"
-        "🕘 금요일 00:40 이후에는 곡 신청이 잠깁니다."
+        "🕘 익일 신청은 전날 23:40까지 가능합니다."
     )
 
     embed = build_status_embed(message, title="신청 불가")
@@ -61,3 +61,4 @@ def test_build_song_list_embed_with_empty_list() -> None:
     assert embed.color == discord.Color.teal()
     assert len(embed.fields) == 1
     assert embed.fields[0].value == "목요일 플레이리스트가 비어 있습니다."
+

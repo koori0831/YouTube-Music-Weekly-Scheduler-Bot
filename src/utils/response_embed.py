@@ -37,7 +37,13 @@ def build_status_embed(message: str, title: str = "안내") -> discord.Embed:
         if "플리 꽉참:" in line:
             full_line = line.split("플리 꽉참:", 1)[1].strip()
             continue
-        if line.startswith("⚠") or line.startswith("🕘"):
+        if (
+            line.startswith("⚠")
+            or line.startswith("🕘")
+            or "현재 신청 가능한 요일이 없습니다." in line
+            or "익일 신청은 전날 23:40까지 가능합니다." in line
+            or "금요일 00:40 이후에는 곡 신청이 잠깁니다." in line
+        ):
             notices.append(line)
             continue
         if reason is None:
