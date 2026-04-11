@@ -1,9 +1,7 @@
-﻿discord.py
+discord.py
 aiosqlite
 ytmusicapi
 python-dotenv
-requests
-beautifulsoup4
 tzdata
 pytest
 pytest-asyncio

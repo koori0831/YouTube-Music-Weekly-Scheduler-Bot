@@ -1,7 +1,6 @@
 ﻿from __future__ import annotations
 
 from src.services import youtube_service
-from src.services.proxy_service import ProxyService
 
 
 class _FakeYTMusic:
@@ -31,14 +30,6 @@ class _FakeResponse:
         return self._payload
 
 
-class _StubProxyService:
-    def __init__(self, proxies: list[str]) -> None:
-        self._proxies = proxies
-
-    def get_proxies(self) -> list[str]:
-        return list(self._proxies)
-
-
 def test_search_music_uses_data_api_metadata_and_strips_topic(monkeypatch):
     fake = _FakeYTMusic(
         items=[
@@ -52,7 +43,7 @@ def test_search_music_uses_data_api_metadata_and_strips_topic(monkeypatch):
     )
     monkeypatch.setattr(youtube_service, "YTMusic", lambda *args, **kwargs: fake)
 
-    svc = youtube_service.YouTubeService(api_key="key", proxy_service=_StubProxyService([]))
+    svc = youtube_service.YouTubeService(api_key="key")
     monkeypatch.setattr(
         svc,
         "_fetch_video_metadata",
@@ -95,7 +86,7 @@ def test_search_music_falls_back_to_search_fields_when_metadata_missing(monkeypa
     )
     monkeypatch.setattr(youtube_service, "YTMusic", lambda *args, **kwargs: fake)
 
-    svc = youtube_service.YouTubeService(api_key="key", proxy_service=_StubProxyService([]))
+    svc = youtube_service.YouTubeService(api_key="key")
     monkeypatch.setattr(svc, "_fetch_video_metadata", lambda ids: {})
 
     results = svc._search_music_sync("q", 1)
@@ -114,48 +105,50 @@ def test_fetch_video_metadata_parses_items(monkeypatch):
     payload = b'{"items":[{"id":"vid1","snippet":{"title":"t"}}]}'
     monkeypatch.setattr(youtube_service, "urlopen", lambda *args, **kwargs: _FakeResponse(payload))
 
-    svc = youtube_service.YouTubeService(api_key="key", proxy_service=_StubProxyService([]))
+    svc = youtube_service.YouTubeService(api_key="key")
     metadata = svc._fetch_video_metadata(["vid1"])
 
     assert "vid1" in metadata
     assert metadata["vid1"]["snippet"]["title"] == "t"
 
 
-def test_youtube_service_loads_proxies_from_proxy_service(monkeypatch):
+def test_search_music_tries_shared_then_fresh_service(monkeypatch):
     fake = _FakeYTMusic(items=[])
     monkeypatch.setattr(youtube_service, "YTMusic", lambda *args, **kwargs: fake)
 
-    svc = youtube_service.YouTubeService(
-        api_key="key",
-        proxy_service=_StubProxyService(["http://10.0.0.1:8080", "http://10.0.0.2:8080"]),
-    )
+    svc = youtube_service.YouTubeService(api_key="key")
 
-    assert svc._proxies == ["http://10.0.0.1:8080", "http://10.0.0.2:8080"]
-    assert fake.proxies == {"http": "http://10.0.0.1:8080", "https": "http://10.0.0.1:8080"}
+    called_sources: list[str] = []
+
+    def _fake_search_with_fallback(*, service, query, limit, errors, source):
+        called_sources.append(source)
+        return []
+
+    monkeypatch.setattr(svc, "_search_with_fallback", _fake_search_with_fallback)
+
+    results = svc._search_music_sync("q", 1)
+
+    assert results == []
+    assert called_sources == ["shared-direct", "fresh-direct"]
 
 
-def test_proxy_service_parses_and_sorts_proxy_html():
-    html = """
-    <html>
-      <body>
-        <script>aa=8^x;bb=0^y;cc=9^z;</script>
-        <table>
-          <tr onmouseover="x">
-            <td><font class="spy14">1.1.1.1<script>ignore()</script></font><script>document.write((aa^foo)+(bb^bar)+(cc^baz))</script></td>
-            <td><font><acronym>90% uptime</acronym></font></td>
-          </tr>
-          <tr onmouseover="x">
-            <td><font class="spy14">2.2.2.2</font><script>document.write((aa^foo)+(aa^bar)+(cc^baz))</script></td>
-            <td><font><acronym>95% uptime</acronym></font></td>
-          </tr>
-        </table>
-      </body>
-    </html>
-    """
+def test_search_music_skips_fresh_service_when_shared_succeeds(monkeypatch):
+    fake = _FakeYTMusic(items=[])
+    monkeypatch.setattr(youtube_service, "YTMusic", lambda *args, **kwargs: fake)
 
-    service = ProxyService()
+    svc = youtube_service.YouTubeService(api_key="key")
 
-    assert service._parse_proxy_html(html) == [
-        "http://2.2.2.2:889",
-        "http://1.1.1.1:809",
-    ]
+    called_sources: list[str] = []
+
+    def _fake_search_with_fallback(*, service, query, limit, errors, source):
+        called_sources.append(source)
+        if source == "shared-direct":
+            return ["hit"]
+        return []
+
+    monkeypatch.setattr(svc, "_search_with_fallback", _fake_search_with_fallback)
+
+    results = svc._search_music_sync("q", 1)
+
+    assert results == ["hit"]
+    assert called_sources == ["shared-direct"]

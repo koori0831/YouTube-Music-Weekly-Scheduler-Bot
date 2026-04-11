@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import asyncio
 import json
@@ -13,74 +13,44 @@ from urllib.request import urlopen
 from ytmusicapi import YTMusic
 
 from src.models import YouTubeResult
-from src.services.proxy_service import ProxyService
 
 logger = logging.getLogger(__name__)
 
 
 class YouTubeService:
-    def __init__(self, api_key: str | None = None, proxy_service: ProxyService | None = None) -> None:
+    def __init__(self, api_key: str | None = None) -> None:
         # ytmusicapi public search does not require API key.
         self._service = YTMusic(language="ko", location="KR")
-        self._proxy_service = proxy_service or ProxyService()
-        self._proxies = self._proxy_service.get_proxies()
-        if self._proxies:
-            self._service.proxies = {"http": self._proxies[0], "https": self._proxies[0]}
         self._api_key = api_key
 
     async def search_music(self, query: str, limit: int = 3) -> list[YouTubeResult]:
         return await asyncio.to_thread(self._search_music_sync, query, limit)
 
-    def _create_service(self, proxy: str | None = None) -> YTMusic:
-        service = YTMusic(language="ko", location="KR")
-        if proxy:
-            service.proxies = {"http": proxy, "https": proxy}
-        return service
+    def _create_service(self) -> YTMusic:
+        return YTMusic(language="ko", location="KR")
 
     def _search_music_sync(self, query: str, limit: int) -> list[YouTubeResult]:
         errors: list[str] = []
 
-        if self._proxies:
-            for proxy in self._proxies:
-                results = self._search_with_fallback(
-                    service=self._create_service(proxy),
-                    query=query,
-                    limit=limit,
-                    errors=errors,
-                    source=f"proxy={proxy}",
-                )
-                if results:
-                    return results
+        direct_results = self._search_with_fallback(
+            service=self._service,
+            query=query,
+            limit=limit,
+            errors=errors,
+            source="shared-direct",
+        )
+        if direct_results:
+            return direct_results
 
-            fallback_results = self._search_with_fallback(
-                service=self._create_service(),
-                query=query,
-                limit=limit,
-                errors=errors,
-                source="direct",
-            )
-            if fallback_results:
-                return fallback_results
-        else:
-            direct_results = self._search_with_fallback(
-                service=self._service,
-                query=query,
-                limit=limit,
-                errors=errors,
-                source="shared-direct",
-            )
-            if direct_results:
-                return direct_results
-
-            fresh_results = self._search_with_fallback(
-                service=self._create_service(),
-                query=query,
-                limit=limit,
-                errors=errors,
-                source="fresh-direct",
-            )
-            if fresh_results:
-                return fresh_results
+        fresh_results = self._search_with_fallback(
+            service=self._create_service(),
+            query=query,
+            limit=limit,
+            errors=errors,
+            source="fresh-direct",
+        )
+        if fresh_results:
+            return fresh_results
 
         if errors:
             logger.warning("YouTube search failed for query=%r: %s", query, " | ".join(errors))
@@ -97,8 +67,27 @@ class YouTubeService:
         try:
             return self._search_music_with_service(service, query, limit)
         except Exception as exc:
-            errors.append(f"{source}: {exc}")
+            errors.append(f"{source}: {self._describe_search_error(exc)}")
             return []
+
+    def _describe_search_error(self, exc: Exception) -> str:
+        lowered = str(exc).lower()
+        exc_type = exc.__class__.__name__
+
+        if isinstance(exc, TimeoutError):
+            reason = "timeout"
+        elif isinstance(exc, URLError):
+            reason = "url_error"
+        elif "connect timeout" in lowered:
+            reason = "connect_timeout"
+        elif "connection refused" in lowered:
+            reason = "connection_refused"
+        elif "name or service not known" in lowered or "nodename nor servname provided" in lowered:
+            reason = "dns_error"
+        else:
+            reason = "request_failed"
+
+        return f"{reason} ({exc_type}): {exc}"
 
     def _search_music_with_service(self, service: YTMusic, query: str, limit: int) -> list[YouTubeResult]:
         primary_items = service.search(query, filter="songs", limit=limit)
@@ -131,7 +120,7 @@ class YouTubeService:
                 str(
                     (snippet.get("title") if isinstance(snippet, dict) else None)
                     or item.get("title")
-                    or "제목 없음"
+                    or "?쒕ぉ ?놁쓬"
                 )
             )
             artist = self._extract_artist(snippet, item)
@@ -276,6 +265,7 @@ class YouTubeService:
         cleaned = unescape((artist or "").strip())
         if cleaned.endswith(" - Topic"):
             return cleaned[: -len(" - Topic")].strip()
-        if cleaned.endswith(" - 주제"):
-            return cleaned[: -len(" - 주제")].strip()
+        if cleaned.endswith(" - 二쇱젣"):
+            return cleaned[: -len(" - 二쇱젣")].strip()
         return cleaned
+
