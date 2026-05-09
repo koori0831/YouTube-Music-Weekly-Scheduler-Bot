@@ -98,6 +98,9 @@ class PlaylistCloseAnnouncementTask:
         request_channel = await self._get_channel(self._request_channel_id)
         announcement_channel = await self._get_channel(self._announcement_channel_id)
         songs = await self._playlist_repo.list_by_day(day)
+        if not songs:
+            return False
+
         titles = [format_song_display(str(song["title"])) for song in songs]
         random.shuffle(titles)
         embed = build_song_list_embed(
@@ -116,6 +119,9 @@ class PlaylistCloseAnnouncementTask:
 
         announcement_channel = await self._get_channel(self._announcement_channel_id)
         songs = await self._playlist_repo.list_by_day(day)
+        if not songs:
+            return False
+
         titles = [format_song_display(str(song["title"])) for song in songs]
         embed = build_song_list_embed(
             title=f"{day}요일 현재 현황",

@@ -112,3 +112,31 @@ async def test_close_announcement_locked_owner_posts_view_to_announcement_only()
         assert len(announcement_channel.messages) == 1
         assert announcement_channel.messages[0].content == "<@1234> 상점 플리입니다."
         assert announcement_channel.messages[0].embeds[0].title == "📋 화요일 현재 현황 (1곡/12곡)"
+
+
+@pytest.mark.asyncio
+async def test_close_announcement_skips_empty_playlist():
+    with tempfile.TemporaryDirectory() as tmp:
+        db_path = str(Path(tmp) / "test.db")
+        await DatabaseManager(db_path).initialize()
+        playlist_repo = PlaylistRepository(db_path)
+        day_settings_repo = DaySettingsRepository(db_path)
+        meta_repo = MetaRepository(db_path)
+
+        request_channel = FakeChannel()
+        announcement_channel = FakeChannel()
+        task = PlaylistCloseAnnouncementTask(
+            bot=FakeBot({1: request_channel, 2: announcement_channel}),
+            playlist_repo=playlist_repo,
+            day_settings_repo=day_settings_repo,
+            meta_repo=meta_repo,
+            request_channel_id=1,
+            announcement_channel_id=2,
+        )
+
+        kst = ZoneInfo("Asia/Seoul")
+        sent = await task.run_close_announcement_if_needed(datetime(2026, 5, 4, 23, 40, tzinfo=kst))
+
+        assert sent is False
+        assert request_channel.messages == []
+        assert announcement_channel.messages == []
