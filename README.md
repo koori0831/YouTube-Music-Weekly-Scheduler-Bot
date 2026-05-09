@@ -15,6 +15,9 @@
   - 유저 주간 신청 횟수(기본 2곡)
   - 요일 잠금/독점 설정
 - 매주 일요일 오전 09:00(KST) 자동 초기화
+- 각 요일 신청 마감(전날 23:40 KST) 후 자동 공지
+  - 일반 플리: 노래 신청 채널에 셔플 결과 발송 후 노래 공지 채널로 전달
+  - 소유자가 있는 잠금 플리: 노래 공지 채널에 소유자 멘션과 현재 현황 발송
 
 ## 기술 스택
 - Python 3.11+
@@ -35,6 +38,8 @@ pip install -r requirements.txt
 - `YOUTUBE_API_KEY`: YouTube Data API v3 키 (검색 메타데이터 보강에 사용)
 - `DB_PATH`: SQLite 파일 경로 (기본값 `bot.db`)
 - `DISCORD_GUILD_ID`(선택): 길드 단위 슬래시 명령 동기화용
+- `SONG_REQUEST_CHANNEL_ID`(선택): 신청 마감 시 셔플 결과를 보낼 노래 신청 채널 ID
+- `SONG_ANNOUNCEMENT_CHANNEL_ID`(선택): 셔플/상점 플리 안내를 전달할 노래 공지 채널 ID
 
 ## 실행
 ```bash
