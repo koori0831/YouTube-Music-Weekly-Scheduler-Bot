@@ -16,6 +16,7 @@ from src.db.repositories import (
 )
 from src.services.playlist_service import PlaylistService
 from src.services.youtube_service import YouTubeService
+from src.tasks.playlist_close_announcement import PlaylistCloseAnnouncementTask
 from src.tasks.weekly_reset import WeeklyResetTask
 
 
@@ -39,6 +40,7 @@ class MusicSchedulerBot(commands.Bot):
         )
         self.youtube_service = YouTubeService(settings.youtube_api_key)
         self.weekly_reset_task: WeeklyResetTask | None = None
+        self.playlist_close_announcement_task: PlaylistCloseAnnouncementTask | None = None
 
     async def setup_hook(self) -> None:
         await self.db_manager.initialize()
@@ -72,9 +74,22 @@ class MusicSchedulerBot(commands.Bot):
         await self.weekly_reset_task.run_reset_if_needed()
         self.weekly_reset_task.start()
 
+        self.playlist_close_announcement_task = PlaylistCloseAnnouncementTask(
+            bot=self,
+            playlist_repo=self.playlist_repo,
+            day_settings_repo=self.day_settings_repo,
+            meta_repo=self.meta_repo,
+            request_channel_id=self.settings.song_request_channel_id,
+            announcement_channel_id=self.settings.song_announcement_channel_id,
+        )
+        await self.playlist_close_announcement_task.run_close_announcement_if_needed()
+        self.playlist_close_announcement_task.start()
+
     async def close(self) -> None:
         if self.weekly_reset_task:
             self.weekly_reset_task.stop()
+        if self.playlist_close_announcement_task:
+            self.playlist_close_announcement_task.stop()
         await super().close()
 
     async def on_ready(self) -> None:
