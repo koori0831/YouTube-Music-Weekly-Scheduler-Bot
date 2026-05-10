@@ -272,8 +272,8 @@ class YouTubeService:
         cleaned = unescape((artist or "").strip())
         if cleaned.endswith(" - Topic"):
             return cleaned[: -len(" - Topic")].strip()
-        if cleaned.endswith(" - 二쇱젣"):
-            return cleaned[: -len(" - 二쇱젣")].strip()
+        if cleaned.endswith(" - 주제"):
+            return cleaned[: -len(" - 주제")].strip()
         return cleaned
 
     def _extract_artist_from_auto_generated_description(self, description: Any, title: Any) -> str | None:
