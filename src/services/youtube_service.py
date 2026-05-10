@@ -120,7 +120,7 @@ class YouTubeService:
                 str(
                     (snippet.get("title") if isinstance(snippet, dict) else None)
                     or item.get("title")
-                    or "?쒕ぉ ?놁쓬"
+                    or "제목 없음"
                 )
             )
             artist = self._extract_artist(snippet, item)
