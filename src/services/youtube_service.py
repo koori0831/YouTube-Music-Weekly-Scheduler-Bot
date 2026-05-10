@@ -143,7 +143,14 @@ class YouTubeService:
         if isinstance(snippet, dict):
             channel_title = str(snippet.get("channelTitle", "")).strip()
             if channel_title:
-                return self._normalize_artist(channel_title)
+                normalized_channel_title = self._normalize_artist(channel_title)
+                description_artist = self._extract_artist_from_auto_generated_description(
+                    snippet.get("description"),
+                    snippet.get("title") or search_item.get("title"),
+                )
+                if normalized_channel_title.lower() == "release" and description_artist:
+                    return description_artist
+                return normalized_channel_title
 
         artist = ""
         artists = search_item.get("artists", [])
@@ -269,3 +276,26 @@ class YouTubeService:
             return cleaned[: -len(" - 二쇱젣")].strip()
         return cleaned
 
+    def _extract_artist_from_auto_generated_description(self, description: Any, title: Any) -> str | None:
+        if not isinstance(description, str):
+            return None
+
+        lines = [unescape(line.strip()) for line in description.splitlines()]
+        lines = [line for line in lines if line]
+        if not lines or not lines[0].startswith("Provided to YouTube by "):
+            return None
+
+        clean_title = unescape(str(title or "")).strip()
+        for line in lines[1:]:
+            if " · " not in line:
+                continue
+
+            parts = [part.strip() for part in line.split(" · ") if part.strip()]
+            if len(parts) < 2:
+                continue
+            maybe_title = parts[0]
+            if clean_title and maybe_title != clean_title:
+                continue
+            return self._normalize_artist(parts[1])
+
+        return None
